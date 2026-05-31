@@ -329,8 +329,8 @@ async function startFetch() {
 
   try {
     const [r1, r2] = await Promise.all([
-      fetch('https://textage.cc/score/titletbl.js'),
-      fetch('https://textage.cc/score/actbl.js'),
+      fetch('/api/titletbl.js'),
+      fetch('/api/actbl.js'),
     ]);
     document.getElementById('prgJs').textContent = '2/2';
     document.getElementById('prgJsBar').style.width = '100%';
