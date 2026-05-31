@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>textage.cc 譜面索引 CSV生成ツール</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+:root {
+  --bg: #0b0b12;
+  --surface: #12121c;
+  --surface2: #1a1a27;
+  --border: #252535;
+  --accent: #00d4ff;
+  --accent2: #ff6b35;
+  --green: #00ff88;
+  --yellow: #ffcc00;
+  --red: #ff4455;
+  --text: #d8d8f0;
+  --muted: #5a5a7a;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  min-height: 100vh; padding: 24px;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.05) 3px,rgba(0,0,0,0.05) 4px);
+  pointer-events: none; z-index: 9999;
+}
+h1 {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 18px; letter-spacing: 3px;
+  color: var(--accent); margin-bottom: 4px;
+}
+h1 em { color: var(--accent2); font-style: normal; }
+.subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 24px;
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 20px; margin-bottom: 16px;
+}
+.card-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; letter-spacing: 2px; color: var(--muted);
+  margin-bottom: 12px; text-transform: uppercase;
+}
+/* ── progress ── */
+.progress-wrap { margin-bottom: 12px; }
+.progress-bar-track {
+  height: 6px; background: var(--surface2);
+  border-radius: 3px; overflow: hidden; margin: 6px 0;
+}
+.progress-bar-fill {
+  height: 100%; width: 0%; background: var(--accent);
+  border-radius: 3px; transition: width 0.3s;
+}
+.progress-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; color: var(--muted);
+}
+.progress-label span { color: var(--accent); }
+/* ── log ── */
+#logBox {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px; line-height: 1.8; color: var(--muted);
+  height: 120px; overflow-y: auto; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px;
+}
+.log-ok  { color: var(--green); }
+.log-warn{ color: var(--yellow); }
+.log-err { color: var(--red); }
+.log-info{ color: var(--accent); }
+/* ── stats ── */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;
+}
+.stat-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 10px; text-align: center;
+}
+.stat-val {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 22px; color: var(--accent); display: block;
+}
+.stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9px; color: var(--muted); letter-spacing: 1px;
+}
+/* ── buttons ── */
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  padding: 10px 20px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; letter-spacing: 1px;
+  cursor: pointer; border-radius: 4px;
+  transition: all 0.15s;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn.primary {
+  background: rgba(0,212,255,0.1); border-color: var(--accent); color: var(--accent);
+}
+.btn.primary:hover:not(:disabled) { background: rgba(0,212,255,0.2); }
+.btn.success {
+  background: rgba(0,255,136,0.1); border-color: var(--green); color: var(--green);
+}
+/* ── preview table ── */
+.table-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+table {
+  width: 100%; border-collapse: collapse;
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+}
+th {
+  background: var(--surface2); color: var(--muted);
+  border: 1px solid var(--border); padding: 6px 8px;
+  position: sticky; top: 0; z-index: 2; text-align: left;
+  font-size: 10px; letter-spacing: 1px;
+}
+td {
+  border: 1px solid var(--border); padding: 5px 8px;
+  color: var(--text); font-size: 11px;
+}
+tr:hover td { background: var(--surface2); }
+td.diff-spa { color: #ff8844; }
+td.diff-spl { color: #ff44aa; }
+td.diff-dpa { color: #44aaff; }
+td.diff-dpl { color: #aa44ff; }
+td a { color: var(--accent); text-decoration: none; }
+td a:hover { text-decoration: underline; }
+/* ── note ── */
+.note {
+  font-size: 12px; color: var(--muted); line-height: 1.8;
+  background: var(--surface2); border-left: 3px solid var(--accent);
+  padding: 10px 14px; border-radius: 0 4px 4px 0; margin-bottom: 12px;
+}
+.note strong { color: var(--text); }
+/* ── version header in preview ── */
+.ver-header td {
+  background: rgba(0,212,255,0.06);
+  color: var(--accent); font-weight: bold; font-size: 10px;
+  letter-spacing: 1px; padding: 4px 8px;
+}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<h1>textage.cc <em>CHART INDEX</em> SCRAPER</h1>
+<div class="subtitle">SPA / SPL / DPA / DPL 譜面索引 → CSV 出力</div>
+
+<div class="card">
+  <div class="card-title">HOW TO USE</div>
+  <div class="note">
+    このツールは <strong>あなたのブラウザ上</strong> で動作します。textage.cc への直接アクセスが必要なため、<strong>CORS制限</strong>を回避するために以下の手順を行ってください：<br>
+    ① Chromeの場合 → 拡張機能「Allow CORS」を一時的に有効にするか、<br>
+    　または Chrome を <code>--disable-web-security</code> オプションで起動する<br>
+    ② あるいは <strong>「titletbl.js / actbl.js を貼り付け」</strong> モードを使用する（推奨・確実）
+  </div>
+  <div class="btn-row">
+    <button class="btn primary" id="btnFetch" onclick="startFetch()">▶ 自動取得モードで開始</button>
+    <button class="btn" onclick="showPasteMode()">📋 JSファイル貼り付けモード</button>
+  </div>
+</div>
+
+<!-- 貼り付けモード -->
+<div class="card" id="pasteCard" style="display:none">
+  <div class="card-title">PASTE MODE — titletbl.js / actbl.js の内容を貼り付け</div>
+  <div class="note" style="margin-bottom:10px">
+    ブラウザで <strong>https://textage.cc/score/titletbl.js</strong> と <strong>https://textage.cc/score/actbl.js</strong> を開き、全文をコピーして以下に貼り付けてください。
+  </div>
+  <div style="margin-bottom:8px">
+    <label style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px">TITLETBL.JS</label><br>
+    <textarea id="pasteTitletbl" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:10px;padding:8px;border-radius:4px;resize:vertical;margin-top:4px" placeholder="titletbl の内容をここに貼り付け..."></textarea>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px">ACTBL.JS</label><br>
+    <textarea id="pasteActbl" rows="5" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:10px;padding:8px;border-radius:4px;resize:vertical;margin-top:4px" placeholder="actbl の内容をここに貼り付け..."></textarea>
+  </div>
+  <button class="btn primary" onclick="processPasted()">▶ 貼り付けデータを解析</button>
+</div>
+
+<!-- 進捗 -->
+<div class="card" id="progressCard" style="display:none">
+  <div class="card-title">PROGRESS</div>
+  <div class="progress-wrap">
+    <div class="progress-label">JS取得: <span id="prgJs">0/2</span></div>
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="prgJsBar"></div></div>
+    <div class="progress-label">解析: <span id="prgParse">0 曲</span></div>
+  </div>
+  <div id="logBox"></div>
+</div>
+
+<!-- 統計 + ダウンロード -->
+<div class="card" id="resultCard" style="display:none">
+  <div class="card-title">RESULT</div>
+  <div class="stats-grid">
+    <div class="stat-box"><span class="stat-val" id="stTotal">0</span><div class="stat-label">TOTAL ROWS</div></div>
+    <div class="stat-box"><span class="stat-val" id="stSpa" style="color:#ff8844">0</span><div class="stat-label">SPA</div></div>
+    <div class="stat-box"><span class="stat-val" id="stSpl" style="color:#ff44aa">0</span><div class="stat-label">SPL</div></div>
+    <div class="stat-box"><span class="stat-val" id="stDpa" style="color:#44aaff">0</span><div class="stat-label">DPA</div></div>
+  </div>
+  <div class="btn-row" style="margin-bottom:12px">
+    <button class="btn success" id="btnDl" onclick="downloadCSV()">⬇ CSV ダウンロード</button>
+    <button class="btn" onclick="copyCSV()">📋 クリップボードにコピー</button>
+  </div>
+  <!-- プレビューテーブル -->
+  <div class="card-title">PREVIEW (先頭100行)</div>
+  <div class="table-wrap">
+    <table id="previewTable">
+      <thead>
+        <tr>
+          <th>バージョン</th><th>曲名</th><th>難易度種別</th>
+          <th>難易度</th><th>リンク先</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// =====================================================
+// バージョン番号 → バージョン名 対応表
+// textage.cc の VERINDEX に対応
+// =====================================================
+const VERSION_NAMES = {
+   1: '1st style',
+   2: 'substream',
+   3: '2nd style',
+   4: '3rd style',
+   5: '4th style',
+   6: '5th style',
+   7: '6th style',
+   8: '7th style',
+   9: '8th style',
+  10: '9th style',
+  11: '10th style',
+  12: 'IIDX RED',
+  13: 'HAPPY SKY',
+  14: 'DistorteD',
+  15: 'GOLD',
+  16: 'DJ TROOPERS',
+  17: 'EMPRESS',
+  18: 'SIRIUS',
+  19: 'Resort Anthem',
+  20: 'Lincle',
+  21: 'tricoro',
+  22: 'SPADA',
+  23: 'PENDUAL',
+  24: 'copula',
+  25: 'SINOBUZ',
+  26: 'CANNON BALLERS',
+  27: 'Rootage',
+  28: 'Heroic Verse',
+  29: 'BISTROVER',
+  30: 'CastHour',
+  31: 'RESIDENT',
+  32: 'EPOLIS',
+  33: 'Sparkle Shower',
+  // CS専用
+   0: 'CS',
+};
+
+// actbl インデックス定義
+// SPN=5, SPH=7, SPA=9, SPL=11, DPN=15, DPH=17, DPA=19, DPL=21
+const IDX = { SPN:5, SPH:7, SPA:9, SPL:11, DPN:15, DPH:17, DPA:19, DPL:21 };
+// URLモード文字: SPA='A', SPL='X', DPA='A'(DP), DPL='X'(DP)
+// URL形式: https://textage.cc/score/VV/KEY.html?MT000
+// M: '1'=SP1P, '2'=SP2P, 'D'=DP
+// T: 'N','H','A','X'=LEGGENDARIA
+const DIFF_INFO = [
+  { key:'SPA', idx:9,  mode:'1', type:'A', cls:'diff-spa' },
+  { key:'SPL', idx:11, mode:'1', type:'X', cls:'diff-spl' },
+  { key:'DPA', idx:19, mode:'D', type:'A', cls:'diff-dpa' },
+  { key:'DPL', idx:21, mode:'D', type:'X', cls:'diff-dpl' },
+];
+
+let csvRows = [];
+let titletbl = {};
+let actbl = {};
+
+// =====================================================
+// ログ
+// =====================================================
+function log(msg, cls='') {
+  const box = document.getElementById('logBox');
+  if(!box) return;
+  const d = document.createElement('div');
+  if(cls) d.className = cls;
+  const t = new Date().toLocaleTimeString('ja-JP');
+  d.textContent = `[${t}] ${msg}`;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+// =====================================================
+// 貼り付けモード表示
+// =====================================================
+function showPasteMode() {
+  document.getElementById('pasteCard').style.display = '';
+}
+
+function processPasted() {
+  const tbl = document.getElementById('pasteTitletbl').value.trim();
+  const abl = document.getElementById('pasteActbl').value.trim();
+  if(!tbl || !abl) { alert('両方のJSファイルの内容を貼り付けてください'); return; }
+  document.getElementById('progressCard').style.display = '';
+  document.getElementById('pasteCard').style.display = 'none';
+  log('貼り付けデータを解析中...', 'log-info');
+  parseTitletbl(tbl);
+  parseActbl(abl);
+  buildCSV();
+}
+
+// =====================================================
+// 自動取得モード (CORS が通る場合のみ動作)
+// =====================================================
+async function startFetch() {
+  document.getElementById('btnFetch').disabled = true;
+  document.getElementById('progressCard').style.display = '';
+  log('titletbl.js 取得中...', 'log-info');
+
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('https://textage.cc/score/titletbl.js'),
+      fetch('https://textage.cc/score/actbl.js'),
+    ]);
+    document.getElementById('prgJs').textContent = '2/2';
+    document.getElementById('prgJsBar').style.width = '100%';
+
+    const [t, a] = await Promise.all([r1.text(), r2.text()]);
+    log('titletbl.js 取得完了 (' + t.length + ' bytes)', 'log-ok');
+    log('actbl.js 取得完了 (' + a.length + ' bytes)', 'log-ok');
+    parseTitletbl(t);
+    parseActbl(a);
+    buildCSV();
+  } catch(e) {
+    log('自動取得失敗 (CORS制限): ' + e.message, 'log-err');
+    log('貼り付けモードをお試しください', 'log-warn');
+    document.getElementById('btnFetch').disabled = false;
+    showPasteMode();
+  }
+}
+
+// =====================================================
+// titletbl.js パーサー
+// key: [verNo, id, opt, genre, artist, title, subtitle?]
+// =====================================================
+function parseTitletbl(src) {
+  titletbl = {};
+  // titletbl={ ... } ブロックを抽出
+  const m = src.match(/titletbl\s*=\s*\{([\s\S]*?)\}\s*;?\s*$/m)
+           || src.match(/titletbl\s*=\s*\{([\s\S]*)\}/);
+  if(!m) { log('titletbl パース失敗', 'log-err'); return; }
+
+  const body = m[1];
+  // 各エントリ: 'key':[...] または "key":[...]
+  // コメント行を除去
+  const clean = body.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const re = /['"]([^'"]+)['"]\s*:\s*(\[[^\]]+\])/g;
+  let match;
+  let count = 0;
+  while((match = re.exec(clean)) !== null) {
+    const key = match[1];
+    try {
+      // JSの 16進 (A=10...F=15) を数値に
+      const arrStr = match[2].replace(/\bA\b/g,'10').replace(/\bB\b/g,'11')
+                             .replace(/\bC\b/g,'12').replace(/\bD\b/g,'13')
+                             .replace(/\bE\b/g,'14').replace(/\bF\b/g,'15');
+      const arr = JSON.parse(arrStr);
+      titletbl[key] = arr;
+      count++;
+    } catch(e) { /* skip */ }
+  }
+  log(`titletbl: ${count} 曲をパース`, 'log-ok');
+}
+
+// =====================================================
+// actbl.js パーサー
+// key: [ver?, ?, ?, ?, ?, SPN, ?, SPH, ?, SPA, ?, SPL, ?, ?, ?, DPN, ?, DPH, ?, DPA, ?, DPL, ?, extra?]
+// =====================================================
+function parseActbl(src) {
+  actbl = {};
+  const m = src.match(/actbl\s*=\s*\{([\s\S]*?)\}\s*;?\s*$/m)
+           || src.match(/actbl\s*=\s*\{([\s\S]*)\}/);
+  if(!m) { log('actbl パース失敗', 'log-err'); return; }
+
+  const body = m[1];
+  const clean = body.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  // A=10, B=11, ... F=15 の変数定義を展開
+  const re = /['"]([^'"]+)['"]\s*:\s*(\[[^\]]+\])/g;
+  let match;
+  let count = 0;
+  while((match = re.exec(clean)) !== null) {
+    const key = match[1];
+    try {
+      const arrStr = match[2]
+        .replace(/\bA\b/g,'10').replace(/\bB\b/g,'11')
+        .replace(/\bC\b/g,'12').replace(/\bD\b/g,'13')
+        .replace(/\bE\b/g,'14').replace(/\bF\b/g,'15');
+      const arr = JSON.parse(arrStr);
+      actbl[key] = arr;
+      count++;
+    } catch(e) { /* skip */ }
+  }
+  log(`actbl: ${count} 曲をパース`, 'log-ok');
+}
+
+// =====================================================
+// CSV 構築
+// =====================================================
+function buildCSV() {
+  csvRows = [];
+  const counts = { SPA:0, SPL:0, DPA:0, DPL:0 };
+  let skipped = 0;
+
+  // titletbl をキーとしてループ
+  const keys = Object.keys(titletbl);
+  log(`${keys.length} 曲を処理中...`, 'log-info');
+
+  for(const key of keys) {
+    const tdata = titletbl[key];
+    if(!Array.isArray(tdata)) continue;
+
+    const verNo  = tdata[0];  // VERINDEX=0
+    const opt    = tdata[2];  // OPTINDEX=2  (1=通常, 2=firebrick/削除済みなど)
+    const title  = tdata[5] || '';
+    // subtitle があれば結合
+    const subtitle = tdata[6] ? ' ' + tdata[6] : '';
+    const fullTitle = title + subtitle;
+
+    // opt==2 → color:firebrick 対象 → スキップ
+    if(opt === 2) { skipped++; continue; }
+
+    // actbl に対応エントリがなければスキップ
+    const adata = actbl[key];
+    if(!Array.isArray(adata)) continue;
+
+    const verName = VERSION_NAMES[verNo] || `ver${verNo}`;
+
+    // バージョン番号からURL内のパス番号を決定
+    // textage.cc の URL は https://textage.cc/score/VV/key.html?MT000
+    // VV は titletbl の VERINDEX だが、特殊ケースあり
+    // VV: 1=1st(1), 2=substream(s), 3=2nd(3)...
+    let urlVer;
+    if(verNo === 2) urlVer = 's'; // substreamのみ特殊
+    else urlVer = String(verNo);
+
+    for(const diff of DIFF_INFO) {
+      const level = adata[diff.idx];
+      // 0 = 譜面なし
+      if(!level || level === 0) continue;
+
+      // URL生成
+      // レベル値 → URL内のレベル文字: 1-9='1'-'9', 10='A', 11='B', 12='C'
+      const levelChar = level <= 9 ? String(level)
+                      : level === 10 ? 'A'
+                      : level === 11 ? 'B' : 'C';
+      const url = `https://textage.cc/score/${urlVer}/${key}.html?${diff.mode}${diff.type}${levelChar}00`;
+
+      csvRows.push({
+        version: verName,
+        title: fullTitle,
+        diffType: diff.key,
+        level: level,
+        url: url,
+        _verNo: verNo,
+        _key: key,
+        _diffCls: diff.cls,
+      });
+      counts[diff.key] = (counts[diff.key]||0) + 1;
+    }
+  }
+
+  // バージョン→曲名順にソート
+  csvRows.sort((a,b) => {
+    if(a._verNo !== b._verNo) return a._verNo - b._verNo;
+    return a.title.localeCompare(b.title, 'ja');
+  });
+
+  const total = csvRows.length;
+  document.getElementById('stTotal').textContent = total.toLocaleString();
+  document.getElementById('stSpa').textContent   = (counts.SPA||0).toLocaleString();
+  document.getElementById('stSpl').textContent   = (counts.SPL||0).toLocaleString();
+  document.getElementById('stDpa').textContent   = (counts.DPA||0).toLocaleString();
+
+  document.getElementById('prgParse').textContent = `${total} 行 (${skipped} 曲スキップ)`;
+  log(`完了: ${total} 行生成 (スキップ: ${skipped} 曲)`, 'log-ok');
+  log(`SPA:${counts.SPA} SPL:${counts.SPL} DPA:${counts.DPA} DPL:${counts.DPL}`, 'log-info');
+
+  buildPreview();
+  document.getElementById('resultCard').style.display = '';
+}
+
+// =====================================================
+// プレビューテーブル
+// =====================================================
+function buildPreview() {
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  let prevVer = null;
+  const limit = Math.min(100, csvRows.length);
+  for(let i = 0; i < limit; i++) {
+    const r = csvRows[i];
+    // バージョン区切り行
+    if(r.version !== prevVer) {
+      const vr = document.createElement('tr');
+      vr.className = 'ver-header';
+      vr.innerHTML = `<td colspan="5">── ${r.version} ──</td>`;
+      tbody.appendChild(vr);
+      prevVer = r.version;
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escHtml(r.version)}</td>
+      <td>${escHtml(r.title)}</td>
+      <td class="${r._diffCls}">${r.diffType}</td>
+      <td style="text-align:center">${r.level}</td>
+      <td><a href="${escHtml(r.url)}" target="_blank">${escHtml(r.url.replace('https://textage.cc/score/',''))}</a></td>
+    `;
+    tbody.appendChild(tr);
+  }
+  if(csvRows.length > 100) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="5" style="color:var(--muted);text-align:center">… 他 ${csvRows.length-100} 行 (CSVに全行含まれます)</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// =====================================================
+// CSV生成
+// =====================================================
+function generateCSVText() {
+  const BOM = '\uFEFF';
+  const header = 'バージョン,曲名,難易度種別,難易度,リンク先\r\n';
+  const body = csvRows.map(r => {
+    const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
+    return [esc(r.version), esc(r.title), r.diffType, r.level, esc(r.url)].join(',');
+  }).join('\r\n');
+  return BOM + header + body;
+}
+
+function downloadCSV() {
+  if(!csvRows.length) return;
+  const csv = generateCSVText();
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `textage_chart_index_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  log('CSVダウンロード完了', 'log-ok');
+}
+
+function copyCSV() {
+  if(!csvRows.length) return;
+  navigator.clipboard.writeText(generateCSVText())
+    .then(() => log('クリップボードにコピーしました', 'log-ok'))
+    .catch(() => log('コピー失敗', 'log-err'));
+}
+</script>
+</body>
+</html>
