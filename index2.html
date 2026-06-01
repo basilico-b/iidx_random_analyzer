@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IIDX RANDOM Analyzer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Noto+Sans+JP:wght@400;500&display=swap');
+
+:root {
+  --bg:       #06060c;
+  --s1:       #0d0d17;
+  --s2:       #131320;
+  --s3:       #191927;
+  --bd:       #1e1e30;
+  --bd2:      #282840;
+  --ac:       #00e5ff;
+  --ac-d:     rgba(0,229,255,.08);
+  --ac2:      #ff4d6a;
+  --gold:     #ffd166;
+  --green:    #06ffa5;
+  --yellow:   #ffd166;
+  --red:      #ff4d6a;
+  --text:     #c8c8e8;
+  --muted:    #484868;
+  --dim:      #282840;
+
+  --lk1: #ff4d6a; /* 黒鍵 */
+  --lk2: #e0e0ff; /* 白鍵 */
+
+  --fm: 'Share Tech Mono', monospace;
+  --fh: 'Orbitron', sans-serif;
+  --fb: 'Noto Sans JP', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--fb);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* scanline */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0px, transparent 2px,
+    rgba(0,0,0,.04) 2px, rgba(0,0,0,.04) 4px
+  );
+  pointer-events: none; z-index: 9000;
+}
+
+/* ═══ HEADER ═══════════════════════════════ */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px;
+  height: 44px;
+  background: var(--s1);
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0; z-index: 100;
+  position: relative;
+}
+.hdr::after {
+  content: '';
+  position: absolute; bottom: -1px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ac), transparent);
+  opacity: .4;
+}
+.logo {
+  font-family: var(--fh);
+  font-size: 13px; font-weight: 900;
+  letter-spacing: 5px;
+  color: var(--ac);
+  text-shadow: 0 0 20px rgba(0,229,255,.4);
+}
+.logo em { color: var(--ac2); font-style: normal; }
+.hdr-status {
+  display: flex; align-items: center; gap: 18px;
+}
+.pill {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--fm); font-size: 10px;
+  letter-spacing: 2px; color: var(--muted);
+}
+.dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--dim); flex-shrink: 0;
+  transition: background .3s, box-shadow .3s;
+}
+.dot.live   { background: var(--green);  box-shadow: 0 0 10px var(--green);  animation: pulse 1.8s infinite; }
+.dot.detect { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); animation: pulse .7s infinite; }
+.dot.err    { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ═══ MAIN LAYOUT ═══════════════════════════ */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ═══ VIDEO PANEL ═══════════════════════════ */
+.vpanel {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+}
+video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#overlayCanvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; z-index: 2;
+}
+#roiCanvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  z-index: 3;
+}
+/* ROI モードによってカーソルを変更 */
+#roiCanvas.resize-n  { cursor: n-resize; }
+#roiCanvas.resize-s  { cursor: s-resize; }
+#roiCanvas.resize-e  { cursor: e-resize; }
+#roiCanvas.resize-w  { cursor: w-resize; }
+#roiCanvas.resize-nw { cursor: nw-resize; }
+#roiCanvas.resize-ne { cursor: ne-resize; }
+#roiCanvas.resize-sw { cursor: sw-resize; }
+#roiCanvas.resize-se { cursor: se-resize; }
+#roiCanvas.move      { cursor: move; }
+#roiCanvas.crosshair { cursor: crosshair; }
+
+.nosrc {
+  position: absolute; inset: 0; z-index: 4;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+.nosrc-icon {
+  font-family: var(--fh);
+  font-size: 36px; color: var(--dim);
+  letter-spacing: 4px;
+}
+.nosrc-sub {
+  font-family: var(--fm);
+  font-size: 10px; letter-spacing: 3px; color: var(--muted);
+}
+
+/* ═══ RIGHT PANEL ═══════════════════════════ */
+.rpanel {
+  background: var(--s1);
+  border-left: 1px solid var(--bd);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.block {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bd);
+  flex-shrink: 0;
+}
+.blabel {
+  font-family: var(--fm);
+  font-size: 8px; letter-spacing: 2.5px;
+  color: var(--muted); text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+/* ─ buttons ─ */
+.brow { display: flex; gap: 5px; }
+.btn {
+  flex: 1; padding: 7px 4px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  color: var(--text);
+  font-family: var(--fm); font-size: 11px; letter-spacing: .5px;
+  cursor: pointer; border-radius: 2px;
+  transition: border-color .12s, color .12s, background .12s;
+  white-space: nowrap; text-align: center;
+}
+.btn:hover:not(:disabled) { border-color: var(--ac); color: var(--ac); }
+.btn:disabled { opacity: .3; cursor: not-allowed; }
+.btn.on { border-color: var(--ac); background: var(--ac-d); color: var(--ac); }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover:not(:disabled) { background: rgba(255,77,106,.08); }
+
+.stg { display: flex; border: 1px solid var(--bd); border-radius: 2px; overflow: hidden; }
+.sb {
+  flex: 1; padding: 6px;
+  background: var(--s2); border: none; cursor: pointer;
+  font-family: var(--fm); font-size: 10px; letter-spacing: 1px; color: var(--muted);
+  transition: all .12s;
+}
+.sb.on { background: var(--ac-d); color: var(--ac); }
+
+/* ─ URL input ─ */
+.urlinp {
+  width: 100%;
+  background: var(--s3); border: 1px solid var(--bd);
+  color: var(--text); font-family: var(--fm); font-size: 9px;
+  padding: 6px 8px; border-radius: 2px; outline: none;
+  margin-bottom: 5px;
+}
+.urlinp:focus { border-color: var(--ac); }
+.urlinp::placeholder { color: var(--muted); }
+
+.chart-info {
+  background: var(--s3); border: 1px solid var(--bd);
+  border-radius: 2px; padding: 7px 8px;
+  font-family: var(--fm); font-size: 9px; line-height: 1.9;
+  color: var(--muted); min-height: 44px; word-break: break-all;
+}
+.ci-title { color: var(--ac); font-size: 10px; }
+.ci-ok    { color: var(--green); }
+.ci-warn  { color: var(--yellow); }
+.ci-err   { color: var(--red); }
+
+/* ─ params ─ */
+.prow { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.pname { font-family: var(--fm); font-size: 9px; color: var(--muted); min-width: 64px; letter-spacing: .5px; }
+.pval  { font-family: var(--fm); font-size: 9px; color: var(--ac); min-width: 24px; text-align: right; }
+input[type=range] {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 2px; background: var(--bd2); border-radius: 1px; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px; height: 10px; border-radius: 50%; background: var(--ac); cursor: pointer;
+}
+
+/* ─ mapping area ─ */
+.mscroll { flex: 1; overflow-y: auto; padding: 10px 12px; min-height: 0; }
+
+.conf-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.conf-label { font-family: var(--fm); font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+.conf-pct   { font-family: var(--fm); font-size: 10px; color: var(--green); }
+.conf-track { height: 3px; background: var(--s3); border-radius: 2px; margin-bottom: 9px; overflow: hidden; }
+.conf-fill  { height: 100%; width: 0%; border-radius: 2px; background: var(--green); transition: width .5s, background .3s; }
+
+/* lane rows */
+.lrows { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.lrow  { display: grid; grid-template-columns: 18px 1fr 22px 16px; align-items: center; gap: 4px; }
+.lidx  { font-family: var(--fm); font-size: 9px; color: var(--muted); text-align: center; }
+.lbar-wrap {
+  position: relative; height: 20px;
+  background: var(--s3); border: 1px solid var(--bd); border-radius: 2px; overflow: hidden;
+}
+.lbar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; transition: width .12s; }
+.lbar-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--fm); font-size: 9px; color: var(--muted); pointer-events: none;
+}
+.lorig { font-family: var(--fm); font-size: 13px; font-weight: bold; text-align: center; }
+.lorig.wk { color: var(--lk2); }
+.lorig.bk { color: var(--lk1); }
+.lorig.uk { color: var(--dim); }
+.lchk { font-size: 10px; text-align: center; color: var(--green); }
+
+/* chart preview */
+.preview-label { font-family: var(--fm); font-size: 8px; letter-spacing: 2px; color: var(--muted); margin-bottom: 5px; }
+.preview-wrap {
+  background: var(--s3); border: 1px solid var(--bd);
+  border-radius: 2px; overflow: hidden;
+  height: 110px; position: relative; margin-bottom: 10px;
+}
+#chartCanvas { width: 100%; height: 100%; display: block; }
+
+/* log */
+.logblock { padding: 7px 12px 10px; border-top: 1px solid var(--bd); flex-shrink: 0; }
+#logbox {
+  font-family: var(--fm); font-size: 9px; color: var(--muted);
+  height: 50px; overflow-y: auto; line-height: 1.7;
+}
+.lok { color: var(--green); }
+.lwarn { color: var(--yellow); }
+.lerr { color: var(--red); }
+.linfo { color: var(--ac); }
+
+/* ROI ガイドポップアップ */
+.roi-guide {
+  position: absolute; top: 10px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(13,13,23,.85);
+  border: 1px solid var(--ac);
+  border-radius: 3px;
+  padding: 6px 14px;
+  font-family: var(--fm); font-size: 10px; letter-spacing: 1px;
+  color: var(--ac);
+  pointer-events: none; z-index: 10;
+  white-space: nowrap;
+  opacity: 0; transition: opacity .3s;
+}
+.roi-guide.show { opacity: 1; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="logo">IIDX <em>RANDOM</em> ANALYZER</div>
+  <div class="hdr-status">
+    <div class="pill"><div class="dot" id="dot"></div><span id="stlbl">STANDBY</span></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ══ 映像パネル ══ -->
+  <div class="vpanel" id="vpanel">
+    <video id="vid" autoplay muted playsinline></video>
+    <canvas id="overlayCanvas"></canvas>
+    <canvas id="roiCanvas"></canvas>
+    <div class="nosrc" id="nosrc">
+      <div class="nosrc-icon">▶ IIDX</div>
+      <div class="nosrc-sub">NO VIDEO SOURCE</div>
+    </div>
+    <div class="roi-guide" id="roiGuide">ドラッグして解析エリアを設定</div>
+  </div>
+
+  <!-- ══ 右パネル ══ -->
+  <div class="rpanel">
+
+    <!-- 映像ソース -->
+    <div class="block">
+      <div class="blabel">VIDEO SOURCE</div>
+      <div class="brow">
+        <button class="btn" id="bsc" onclick="startSrc('screen')">🖥 SCREEN</button>
+        <button class="btn" id="bca" onclick="startSrc('camera')">📷 CAMERA</button>
+        <button class="btn danger" id="bstop" onclick="stopSrc()" style="display:none">■ STOP</button>
+      </div>
+    </div>
+
+    <!-- プレイサイド -->
+    <div class="block">
+      <div class="blabel">PLAY SIDE</div>
+      <div class="stg">
+        <button class="sb on" id="s1p" onclick="setSide('1P')">1P (LEFT)</button>
+        <button class="sb"    id="s2p" onclick="setSide('2P')">2P (RIGHT)</button>
+      </div>
+    </div>
+
+    <!-- 譜面URL -->
+    <div class="block">
+      <div class="blabel">TEXTAGE.CC CHART</div>
+      <input class="urlinp" id="turl"
+        placeholder="https://textage.cc/score/XX/song.html?1A..."
+        oninput="onUrl(this.value)">
+      <div class="brow" style="margin-bottom:6px">
+        <button class="btn on" id="bfetch" onclick="fetchChart()" disabled>読込</button>
+        <button class="btn" onclick="clearChart()">クリア</button>
+      </div>
+      <div class="chart-info" id="cinfo">
+        <span style="color:var(--muted)">textage.cc の1P譜面URLを貼り付け</span>
+      </div>
+    </div>
+
+    <!-- 解析制御 -->
+    <div class="block">
+      <div class="blabel">ANALYSIS</div>
+      <div class="brow">
+        <button class="btn" onclick="resetMap()">RESET</button>
+        <button class="btn on" id="ban" onclick="toggleAn()" disabled>● 解析開始</button>
+      </div>
+    </div>
+
+    <!-- 検出パラメータ -->
+    <div class="block">
+      <div class="blabel">DETECTION</div>
+      <div class="prow">
+        <span class="pname">THRESHOLD</span>
+        <input type="range" id="pTh" min="20" max="230" value="90"
+          oninput="sp('threshold',+this.value)">
+        <span class="pval" id="vTh">90</span>
+      </div>
+      <div class="prow">
+        <span class="pname">DECAY FR.</span>
+        <input type="range" id="pDe" min="2" max="40" value="12"
+          oninput="sp('decay',+this.value)">
+        <span class="pval" id="vDe">12</span>
+      </div>
+      <div class="prow">
+        <span class="pname">MIN HITS</span>
+        <input type="range" id="pMh" min="5" max="200" value="30"
+          oninput="sp('minHits',+this.value)">
+        <span class="pval" id="vMh">30</span>
+      </div>
+    </div>
+
+    <!-- マッピング結果 -->
+    <div class="mscroll">
+      <div class="blabel">RANDOM MAPPING</div>
+      <div class="conf-row">
+        <span class="conf-label">CONFIDENCE</span>
+        <span class="conf-pct" id="cpct">0%</span>
+      </div>
+      <div class="conf-track"><div class="conf-fill" id="cfill"></div></div>
+      <div class="lrows" id="lrows"></div>
+      <div class="preview-label">NOTES PREVIEW</div>
+      <div class="preview-wrap">
+        <canvas id="chartCanvas"></canvas>
+      </div>
+      <div class="brow">
+        <button class="btn" onclick="exportResult()">EXPORT JSON</button>
+      </div>
+    </div>
+
+    <!-- ログ -->
+    <div class="logblock">
+      <div class="blabel">LOG</div>
+      <div id="logbox"></div>
+    </div>
+
+  </div><!-- /rpanel -->
+</div><!-- /layout -->
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════
+// 定数
+// ═══════════════════════════════════════════════════
+const LANES = 7;
+// KEY_TYPE[0..6] → lane1..7: true=白鍵 false=黒鍵
+const KEY_TYPE = [false, true, false, true, false, true, false];
+const API_BASE = '/api/getChart?url=';
+const HANDLE_PX = 8;   // リサイズハンドル検出範囲(px)
+const ROI_MIN   = 40;  // ROI最小サイズ(px)
+
+// ═══════════════════════════════════════════════════
+// 状態
+// ═══════════════════════════════════════════════════
+let stream      = null;
+let anRunning   = false;
+let rafId       = null;
+let playSide    = '1P';
+let params      = { threshold:90, decay:12, minHits:30 };
+let hitCount    = new Array(LANES).fill(0);
+let brightness  = new Array(LANES).fill(0);
+let decayTmr    = new Array(LANES).fill(0);
+let mappedOrig  = new Array(LANES).fill(null);
+let chartData   = null;
+
+// ROI: 映像ピクセル座標（映像解像度基準）
+// null のとき「未設定」→ 映像領域全体を使う代わりに常に描画
+let roi = null;
+
+// ROI 操作状態
+// mode: 'idle'|'draw'|'move'|'resize'
+let roiDrag = { mode:'idle', sx:0, sy:0, origRoi:null, edge:null };
+
+// ═══════════════════════════════════════════════════
+// DOM
+// ═══════════════════════════════════════════════════
+const vid   = document.getElementById('vid');
+const ocanv = document.getElementById('overlayCanvas');
+const rcanv = document.getElementById('roiCanvas');
+const octx  = ocanv.getContext('2d');
+const rctx  = rcanv.getContext('2d');
+const cc    = document.getElementById('chartCanvas');
+const cctx  = cc.getContext('2d');
+
+// ═══════════════════════════════════════════════════
+// ログ
+// ═══════════════════════════════════════════════════
+function lg(msg, cls='') {
+  const b = document.getElementById('logbox');
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  const t = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.textContent = `[${t}] ${msg}`;
+  b.appendChild(d);
+  b.scrollTop = b.scrollHeight;
+  while (b.children.length > 100) b.firstChild.remove();
+}
+function setSt(l, s='') {
+  document.getElementById('stlbl').textContent = l;
+  document.getElementById('dot').className = 'dot' + (s ? ' '+s : '');
+}
+
+// ═══════════════════════════════════════════════════
+// 映像ソース
+// ═══════════════════════════════════════════════════
+async function startSrc(type) {
+  try {
+    if (stream) stopSrc();
+    stream = type === 'screen'
+      ? await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60,cursor:'never'},audio:false})
+      : await navigator.mediaDevices.getUserMedia({video:{width:1920,height:1080,frameRate:60},audio:false});
+    vid.srcObject = stream;
+    await vid.play();
+    document.getElementById('nosrc').style.display = 'none';
+    document.getElementById('bstop').style.display = '';
+    document.getElementById('bsc').classList.toggle('on', type==='screen');
+    document.getElementById('bca').classList.toggle('on', type==='camera');
+    document.getElementById('ban').disabled = false;
+    setSt('LIVE','live');
+    stream.getVideoTracks()[0].onended = () => stopSrc();
+    vid.addEventListener('loadedmetadata', () => {
+      syncCanvasSize();
+      lg(`映像: ${vid.videoWidth}×${vid.videoHeight}`,'linfo');
+      // ROIが未設定なら中央に初期ROIを置く
+      if (!roi) setDefaultROI();
+      showGuide();
+    }, {once:true});
+    lg(`${type==='screen'?'画面':'カメラ'}開始`,'lok');
+  } catch(e) {
+    lg('映像取得失敗: '+e.message,'lerr');
+  }
+}
+
+function stopSrc() {
+  stream?.getTracks().forEach(t=>t.stop()); stream = null;
+  vid.srcObject = null;
+  document.getElementById('nosrc').style.display = '';
+  document.getElementById('bstop').style.display = 'none';
+  document.getElementById('bsc').classList.remove('on');
+  document.getElementById('bca').classList.remove('on');
+  document.getElementById('ban').disabled = true;
+  stopAn(); setSt('STANDBY');
+  lg('映像停止');
+}
+
+function syncCanvasSize() {
+  const vw = vid.videoWidth, vh = vid.videoHeight;
+  ocanv.width = rcanv.width = vw;
+  ocanv.height = rcanv.height = vh;
+}
+
+function setDefaultROI() {
+  const vw = vid.videoWidth, vh = vid.videoHeight;
+  // 映像中央 60% × 20% を初期ROI
+  const w = Math.floor(vw * 0.60);
+  const h = Math.floor(vh * 0.20);
+  const x = Math.floor((vw - w) / 2);
+  const y = Math.floor(vh * 0.55);
+  roi = {x, y, w, h};
+  drawROI();
+}
+
+function showGuide() {
+  const g = document.getElementById('roiGuide');
+  g.classList.add('show');
+  setTimeout(() => g.classList.remove('show'), 3000);
+}
+
+// ═══════════════════════════════════════════════════
+// ROI ─ ドラッグ＆リサイズ
+// ═══════════════════════════════════════════════════
+
+/** canvas座標(映像ピクセル)へ変換 */
+function toVidCoord(e) {
+  const r  = rcanv.getBoundingClientRect();
+  const sx = rcanv.width  / r.width;
+  const sy = rcanv.height / r.height;
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: (cx - r.left)*sx, y: (cy - r.top)*sy };
+}
+
+/**
+ * カーソル位置がROIのどのエッジ/コーナーにあるかを判定
+ * 戻り値: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'move'|null
+ */
+function getEdge(px, py) {
+  if (!roi) return null;
+  const {x,y,w,h} = roi;
+  const inH = px >= x - HANDLE_PX && px <= x + w + HANDLE_PX;
+  const inV = py >= y - HANDLE_PX && py <= y + h + HANDLE_PX;
+  if (!inH || !inV) return null;
+
+  const onL = Math.abs(px - x)     <= HANDLE_PX;
+  const onR = Math.abs(px - (x+w)) <= HANDLE_PX;
+  const onT = Math.abs(py - y)     <= HANDLE_PX;
+  const onB = Math.abs(py - (y+h)) <= HANDLE_PX;
+
+  if (onT && onL) return 'nw';
+  if (onT && onR) return 'ne';
+  if (onB && onL) return 'sw';
+  if (onB && onR) return 'se';
+  if (onT) return 'n';
+  if (onB) return 's';
+  if (onL) return 'w';
+  if (onR) return 'e';
+
+  // ROI内部 → move
+  if (px > x && px < x+w && py > y && py < y+h) return 'move';
+  return null;
+}
+
+rcanv.addEventListener('mousemove', onMouseMove);
+rcanv.addEventListener('mousedown', onMouseDown);
+window.addEventListener('mouseup',  onMouseUp);
+rcanv.addEventListener('touchstart', e=>{ e.preventDefault(); onMouseDown(e); }, {passive:false});
+rcanv.addEventListener('touchmove',  e=>{ e.preventDefault(); onMouseMove(e); }, {passive:false});
+window.addEventListener('touchend',  e=>{ onMouseUp(e); });
+
+function onMouseMove(e) {
+  const {x, y} = toVidCoord(e);
+
+  if (roiDrag.mode === 'idle') {
+    // カーソル形状を更新
+    const edge = getEdge(x, y);
+    if (!edge)                rcanv.className = stream ? 'crosshair' : '';
+    else if (edge==='move')   rcanv.className = 'move';
+    else                      rcanv.className = 'resize-'+edge;
+    return;
+  }
+
+  const dx = x - roiDrag.sx;
+  const dy = y - roiDrag.sy;
+
+  if (roiDrag.mode === 'draw') {
+    const ox = roiDrag.sx, oy = roiDrag.sy;
+    roi = {
+      x: Math.min(ox, x),
+      y: Math.min(oy, y),
+      w: Math.max(ROI_MIN, Math.abs(x - ox)),
+      h: Math.max(ROI_MIN, Math.abs(y - oy)),
+    };
+    drawROI();
+    return;
+  }
+
+  if (roiDrag.mode === 'move') {
+    const vw = rcanv.width, vh = rcanv.height;
+    const or = roiDrag.origRoi;
+    roi = {
+      x: Math.max(0, Math.min(vw - or.w, or.x + dx)),
+      y: Math.max(0, Math.min(vh - or.h, or.y + dy)),
+      w: or.w, h: or.h,
+    };
+    drawROI(); return;
+  }
+
+  if (roiDrag.mode === 'resize') {
+    const or  = roiDrag.origRoi;
+    const vw  = rcanv.width, vh = rcanv.height;
+    let {x:rx, y:ry, w:rw, h:rh} = {...or};
+    const edge = roiDrag.edge;
+
+    if (edge.includes('e')) { rw = Math.max(ROI_MIN, or.w + dx); }
+    if (edge.includes('s')) { rh = Math.max(ROI_MIN, or.h + dy); }
+    if (edge.includes('w')) {
+      const nw = Math.max(ROI_MIN, or.w - dx);
+      rx = or.x + or.w - nw; rw = nw;
+    }
+    if (edge.includes('n')) {
+      const nh = Math.max(ROI_MIN, or.h - dy);
+      ry = or.y + or.h - nh; rh = nh;
+    }
+    roi = {
+      x: Math.max(0, rx),
+      y: Math.max(0, ry),
+      w: Math.min(vw - Math.max(0,rx), rw),
+      h: Math.min(vh - Math.max(0,ry), rh),
+    };
+    drawROI(); return;
+  }
+}
+
+function onMouseDown(e) {
+  if (!stream) return;
+  const {x, y} = toVidCoord(e);
+  const edge = getEdge(x, y);
+
+  if (!roi || !edge) {
+    // ROI外 → 新規描画
+    roiDrag = { mode:'draw', sx:x, sy:y, origRoi:null, edge:null };
+    roi = {x, y, w:ROI_MIN, h:ROI_MIN};
+  } else if (edge === 'move') {
+    roiDrag = { mode:'move', sx:x, sy:y, origRoi:{...roi}, edge:null };
+  } else {
+    roiDrag = { mode:'resize', sx:x, sy:y, origRoi:{...roi}, edge };
+  }
+}
+
+function onMouseUp(e) {
+  if (roiDrag.mode !== 'idle') {
+    const prev = roiDrag.mode;
+    roiDrag = { mode:'idle', sx:0, sy:0, origRoi:null, edge:null };
+    if (prev === 'draw' && roi && roi.w > ROI_MIN && roi.h > ROI_MIN) {
+      lg(`ROI設定: x=${Math.round(roi.x)} y=${Math.round(roi.y)} w=${Math.round(roi.w)} h=${Math.round(roi.h)}`,'lok');
+    }
+    drawROI();
+  }
+}
+
+// ─── ROI 描画 ─────────────────────────────────
+function drawROI() {
+  rctx.clearRect(0, 0, rcanv.width, rcanv.height);
+  if (!roi) return;
+
+  const {x,y,w,h} = roi;
+
+  // 外側を暗くする
+  rctx.save();
+  rctx.fillStyle = 'rgba(0,0,0,.55)';
+  rctx.fillRect(0,0,rcanv.width,rcanv.height);
+  rctx.clearRect(x,y,w,h);
+  rctx.restore();
+
+  // 枠
+  rctx.strokeStyle = '#00e5ff';
+  rctx.lineWidth   = 1.5;
+  rctx.strokeRect(x,y,w,h);
+
+  // コーナーハンドル
+  const hs = 6;
+  rctx.fillStyle = '#00e5ff';
+  [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([cx,cy])=>{
+    rctx.fillRect(cx-hs/2, cy-hs/2, hs, hs);
+  });
+  // 中間ハンドル
+  rctx.fillStyle = 'rgba(0,229,255,.5)';
+  [[x+w/2,y],[x+w/2,y+h],[x,y+h/2],[x+w,y+h/2]].forEach(([cx,cy])=>{
+    rctx.fillRect(cx-hs/2, cy-hs/2, hs, hs);
+  });
+
+  // レーン分割線
+  rctx.strokeStyle = 'rgba(0,229,255,.25)';
+  rctx.lineWidth   = 0.5;
+  rctx.setLineDash([4,4]);
+  for (let i=1; i<LANES; i++) {
+    const lx = x + w*(i/LANES);
+    rctx.beginPath(); rctx.moveTo(lx,y); rctx.lineTo(lx,y+h); rctx.stroke();
+  }
+  rctx.setLineDash([]);
+
+  // レーン番号
+  rctx.fillStyle = 'rgba(0,229,255,.7)';
+  rctx.font      = '10px "Share Tech Mono"';
+  rctx.textAlign = 'center';
+  for (let i=0; i<LANES; i++) {
+    const lx = x + w*((i+.5)/LANES);
+    rctx.fillText(i+1, lx, y - 4);
+  }
+  rctx.textAlign = 'left';
+}
+
+// ═══════════════════════════════════════════════════
+// 解析ループ
+// ═══════════════════════════════════════════════════
+function toggleAn() { anRunning ? stopAn() : startAn(); }
+
+function startAn() {
+  if (!stream) { lg('映像ソースを選択してください','lwarn'); return; }
+  if (!roi)    { lg('映像上でROIを設定してください','lwarn'); return; }
+  anRunning = true;
+  hitCount.fill(0); brightness.fill(0); decayTmr.fill(0); mappedOrig.fill(null);
+  document.getElementById('ban').textContent = '■ 解析停止';
+  setSt('DETECTING','detect');
+  lg('解析開始','lok');
+  loop();
+}
+function stopAn() {
+  anRunning = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  document.getElementById('ban').textContent = '● 解析開始';
+  if (stream) setSt('LIVE','live');
+  lg('解析停止');
+}
+function loop() {
+  if (!anRunning) return;
+  processFrame();
+  rafId = requestAnimationFrame(loop);
+}
+
+// ─── フレーム処理 ─────────────────────────────
+function processFrame() {
+  if (!roi || vid.readyState < 2) return;
+  const vw = vid.videoWidth, vh = vid.videoHeight;
+  if (!vw || !vh) return;
+
+  // offscreen canvas でピクセルサンプリング
+  const tmp = document.createElement('canvas');
+  tmp.width = vw; tmp.height = vh;
+  const tx = tmp.getContext('2d');
+  tx.drawImage(vid, 0, 0);
+
+  // ROI中央±12%の高さ範囲をサンプリング
+  const sCY = roi.y + roi.h * 0.5;
+  const sHH = Math.max(2, roi.h * 0.22);
+  const det = [];
+
+  for (let l=0; l<LANES; l++) {
+    const lx = roi.x + roi.w*(l/LANES);
+    const lw = roi.w/LANES;
+    const sx = Math.floor(lx + lw*0.15);
+    const sw = Math.max(1, Math.floor(lw*0.70));
+    const sy = Math.max(0, Math.floor(sCY - sHH));
+    const sh = Math.max(1, Math.min(Math.floor(sHH*2), vh - sy));
+
+    let img;
+    try { img = tx.getImageData(sx, sy, sw, sh); } catch(e) { continue; }
+
+    const d = img.data;
+    let sum = 0;
+    const pix = sw * sh;
+    for (let p=0; p<d.length; p+=4)
+      sum += 0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2];
+    const avg = pix > 0 ? sum/pix : 0;
+    brightness[l] = avg;
+
+    if (avg > params.threshold) {
+      det.push(l);
+      hitCount[l]++;
+      decayTmr[l] = params.decay;
+    } else if (decayTmr[l] > 0) {
+      decayTmr[l]--;
+    }
+  }
+
+  updateMapping();
+  drawOverlay(det);
+  updateUI();
+}
+
+// ═══════════════════════════════════════════════════
+// マッピング推定
+// ═══════════════════════════════════════════════════
+function updateMapping() {
+  const total = hitCount.reduce((a,b)=>a+b, 0);
+  const cf = document.getElementById('cfill');
+  const cp = document.getElementById('cpct');
+
+  if (total < params.minHits) {
+    mappedOrig.fill(null);
+    cf.style.width = '0%'; cp.textContent = '0%'; return;
+  }
+
+  const newMap = new Array(LANES).fill(null);
+
+  if (chartData && chartData.laneFreq) {
+    // ── 正規譜面の各レーン頻度(0-indexed) と 実測頻度をGreedyマッチング ──
+    // key=0(scratch)は除外済み、laneFreq[0..6] = lane1..7の頻度
+    const refFreq  = chartData.laneFreq;
+    const refTotal = refFreq.reduce((a,b)=>a+b, 0) || 1;
+    const hitTotal = total || 1;
+    const refNorm  = refFreq.map(v => v/refTotal);
+    const hitNorm  = hitCount.map(v => v/hitTotal);
+
+    // 元レーン(orig index 0-6)を頻度降順でソート
+    const origSorted = [0,1,2,3,4,5,6].sort((a,b)=>refNorm[b]-refNorm[a]);
+    // 表示レーン(disp 0-6)を頻度降順でソート
+    const dispSorted = [0,1,2,3,4,5,6].sort((a,b)=>hitNorm[b]-hitNorm[a]);
+    // i番目に頻度の高い表示レーン ← i番目に頻度の高い元レーン
+    dispSorted.forEach((disp, i) => { newMap[disp] = origSorted[i] + 1; }); // 1-indexed
+  } else {
+    // ── 譜面なし: 白鍵(2,4,6)>黒鍵(1,3,5,7)の一般傾向で近似 ──
+    const byFreq   = hitCount.map((c,i)=>({i,c})).sort((a,b)=>b.c-a.c);
+    const highDisp = byFreq.slice(0,3).map(x=>x.i).sort((a,b)=>a-b);
+    const lowDisp  = byFreq.slice(3).map(x=>x.i).sort((a,b)=>a-b);
+    [2,4,6].forEach((o,i) => { if(highDisp[i]!==undefined) newMap[highDisp[i]] = o; });
+    [1,3,5,7].forEach((o,i) => { if(lowDisp[i]!==undefined)  newMap[lowDisp[i]]  = o; });
+  }
+  mappedOrig = newMap;
+
+  // 信頼度
+  const avgF  = 1/LANES;
+  const vari  = hitCount.reduce((s,c)=>s+Math.pow(c/total-avgF,2),0)/LANES;
+  const maxV  = Math.pow(avgF,2)*(LANES-1)/LANES;
+  const dataSc = Math.min(1, total/250);
+  const uniSc  = chartData ? 0.85 : Math.max(0, 1 - vari/Math.max(maxV,1e-9)*3);
+  const conf   = Math.min(100, Math.round((dataSc*0.6 + uniSc*0.4)*100));
+  cf.style.width = conf+'%';
+  cf.style.background = conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
+  cp.textContent = conf+'%';
+  cp.style.color  = conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
+}
+
+// ═══════════════════════════════════════════════════
+// オーバーレイ描画
+// ═══════════════════════════════════════════════════
+function drawOverlay(det) {
+  octx.clearRect(0, 0, ocanv.width, ocanv.height);
+  if (!roi) return;
+  const {x,y,w,h} = roi;
+
+  for (let l=0; l<LANES; l++) {
+    const lx = x + w*(l/LANES);
+    const lw = w/LANES;
+    const dr = decayTmr[l]/params.decay;
+    if (det.includes(l)) {
+      octx.fillStyle = 'rgba(0,229,255,.4)';
+      octx.fillRect(lx, y, lw, h);
+    } else if (dr > 0) {
+      octx.fillStyle = `rgba(0,229,255,${dr*0.12})`;
+      octx.fillRect(lx, y, lw, h);
+    }
+  }
+  // ROI枠（overlayで薄く重ねて光って見せる）
+  octx.strokeStyle = 'rgba(0,229,255,.35)';
+  octx.lineWidth = 1;
+  octx.strokeRect(x, y, w, h);
+}
+
+// ═══════════════════════════════════════════════════
+// UI 更新
+// ═══════════════════════════════════════════════════
+function updateUI() {
+  const cont = document.getElementById('lrows');
+  cont.innerHTML = '';
+  for (let l=0; l<LANES; l++) {
+    const orig   = mappedOrig[l];
+    const fp     = Math.min(100, (brightness[l]/255)*100);
+    const active = decayTmr[l] > 0;
+    const isW    = orig !== null && KEY_TYPE[orig-1];
+    const chk    = (chartData && orig !== null) ? '✓' : '';
+
+    const row = document.createElement('div');
+    row.className = 'lrow';
+    row.innerHTML = `
+      <div class="lidx">${l+1}</div>
+      <div class="lbar-wrap">
+        <div class="lbar-fill" style="width:${fp}%;background:${active?'var(--ac)':'rgba(0,229,255,.15)'}"></div>
+        <div class="lbar-text" style="color:${active?'var(--ac)':'var(--muted)'}">${Math.round(brightness[l])}</div>
+      </div>
+      <div class="lorig ${orig===null?'uk':isW?'wk':'bk'}">${orig ?? '?'}</div>
+      <div class="lchk">${chk}</div>
+    `;
+    cont.appendChild(row);
+  }
+  drawChartPreview();
+}
+
+// ═══════════════════════════════════════════════════
+// 譜面プレビュー
+// ═══════════════════════════════════════════════════
+function drawChartPreview() {
+  const pw = cc.offsetWidth  || 200;
+  const ph = cc.offsetHeight || 110;
+  cc.width = pw; cc.height = ph;
+  cctx.clearRect(0,0,pw,ph);
+  cctx.fillStyle = '#131320'; cctx.fillRect(0,0,pw,ph);
+
+  const lw = pw/LANES;
+  // レーン区切り
+  cctx.strokeStyle = 'rgba(255,255,255,.06)'; cctx.lineWidth = .5;
+  for (let i=1; i<LANES; i++) {
+    cctx.beginPath(); cctx.moveTo(i*lw,0); cctx.lineTo(i*lw,ph); cctx.stroke();
+  }
+
+  if (!chartData?.notes?.length) {
+    cctx.fillStyle='var(--muted)'; cctx.font='9px "Share Tech Mono"';
+    cctx.fillText('NO CHART DATA',6,16); return;
+  }
+
+  // origToDisp: origLane(1-7) → dispLane(0-6)
+  const o2d = new Array(8).fill(-1);
+  mappedOrig.forEach((orig,disp) => { if (orig!==null) o2d[orig] = disp; });
+
+  const maxPos = chartData.notes.reduce((m,n) => Math.max(m, n.pos), 0) || 1;
+
+  chartData.notes.forEach(n => {
+    if (n.key < 1 || n.key > 7) return; // scratchスキップ
+    const disp = o2d[n.key] >= 0 ? o2d[n.key] : n.key-1;
+    const nx = disp * lw;
+    const ny = ph - (n.pos/maxPos)*ph;
+    cctx.fillStyle = KEY_TYPE[n.key-1] ? 'rgba(220,220,255,.8)' : 'rgba(255,77,106,.8)';
+    cctx.fillRect(nx+1, ny, lw-2, 3);
+  });
+
+  // 活性レーンをハイライト
+  for (let l=0; l<LANES; l++) {
+    if (decayTmr[l] > 0) {
+      cctx.fillStyle = 'rgba(0,229,255,.15)';
+      cctx.fillRect(l*lw, 0, lw, ph);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// Cloudflare API 譜面取得
+// ═══════════════════════════════════════════════════
+function onUrl(v) {
+  document.getElementById('bfetch').disabled = !/textage\.cc\/score\/.+\.html/.test(v);
+}
+
+async function fetchChart() {
+  const rawUrl = document.getElementById('turl').value.trim();
+  if (!rawUrl) return;
+  const ci = document.getElementById('cinfo');
+  ci.innerHTML = '<span class="ci-warn">⏳ 取得中...</span>';
+  lg('Cloudflare API 呼び出し中...','linfo');
+  try {
+    const apiUrl = API_BASE + encodeURIComponent(rawUrl);
+    const res = await fetch(apiUrl, {
+      headers: { 'Accept':'application/json', 'Referer':'https://www.iidx-memo.com/' }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    applyResponse(json, rawUrl);
+  } catch(e) {
+    lg('API失敗: '+e.message,'lerr');
+    ci.innerHTML = `<span class="ci-err">❌ ${e.message}</span>
+      <br><span class="ci-warn" style="font-size:9px">CORSエラーの場合: Allow CORS拡張を有効にするか、iidx-memo.comを先に開いてください</span>`;
+  }
+}
+
+// ─── レスポンス解析 ───────────────────────────────
+// レスポンス形式:
+// {
+//   url, ver, key, diff, title,
+//   notes: [ {measure, pos, key(0=SCR,1-7=鍵盤), type}, ... ],
+//   total_notes, bpm_base, bpm_changes,
+//   lndef, measure_count
+// }
+function applyResponse(json, rawUrl) {
+  const ci = document.getElementById('cinfo');
+  try {
+    const title  = json.title || '(不明)';
+    const bpm    = json.bpm_base || '';
+    const diff   = json.diff || '';
+    const total  = json.total_notes || 0;
+    const lndef  = json.lndef || 384; // 1小節の分割数(通常384)
+
+    // notes から鍵盤ノーツのみ抽出 (key 1-7, scratchのkey=0は除外)
+    const kNotes = (json.notes || []).filter(n => n.key >= 1 && n.key <= 7);
+
+    // 全体の絶対位置(pos)を計算: measure*lndef + pos
+    // measure_lens が空の場合は全小節が lndef 長とみなす
+    const measLens = json.measure_lens || {};
+    const notes = kNotes.map(n => {
+      // 小節 0 ~ measure-1 の累積長を計算
+      let absPos = 0;
+      for (let m = 0; m < n.measure; m++) {
+        absPos += (measLens[m] !== undefined ? measLens[m] : lndef);
+      }
+      absPos += n.pos;
+      return { key: n.key, pos: absPos };
+    });
+
+    // レーン頻度集計 (0-indexed: laneFreq[0]=lane1の頻度, ... )
+    const laneFreq = new Array(7).fill(0);
+    notes.forEach(n => { laneFreq[n.key - 1]++; });
+
+    chartData = { title, bpm, diff, totalNotes:total, notes, laneFreq };
+
+    const diffLabel = {N:'NORMAL',H:'HYPER',A:'ANOTHER',X:'LEGGENDARIA',B:'BEGINNER'}[diff] || diff;
+    const freqStr = laneFreq.map((f,i)=>`L${i+1}:${f}`).join(' ');
+    ci.innerHTML = `
+      <div class="ci-title">${escH(title)}</div>
+      <div>${diffLabel} / BPM ${escH(String(bpm))} / ${total}notes</div>
+      <div class="ci-ok" style="font-size:9px">✓ 読込完了</div>
+      <div style="font-size:8px;letter-spacing:.5px">${freqStr}</div>
+    `;
+    lg(`譜面: ${title} [${diffLabel}] ${total}notes`,'lok');
+    lg(`レーン頻度: ${freqStr}`,'linfo');
+    drawChartPreview();
+  } catch(e) {
+    lg('レスポンス解析エラー: '+e.message,'lerr');
+    ci.innerHTML = `<span class="ci-err">解析エラー: ${e.message}</span>`;
+  }
+}
+
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function clearChart() {
+  chartData = null;
+  document.getElementById('turl').value = '';
+  document.getElementById('bfetch').disabled = true;
+  document.getElementById('cinfo').innerHTML =
+    '<span style="color:var(--muted)">textage.cc の1P譜面URLを貼り付け</span>';
+  drawChartPreview();
+  lg('譜面データクリア');
+}
+
+// ═══════════════════════════════════════════════════
+// リセット・エクスポート・パラメータ
+// ═══════════════════════════════════════════════════
+function resetMap() {
+  hitCount.fill(0); brightness.fill(0); decayTmr.fill(0); mappedOrig.fill(null);
+  document.getElementById('cfill').style.width = '0%';
+  document.getElementById('cpct').textContent  = '0%';
+  updateUI(); lg('マッピングリセット','linfo');
+}
+
+function exportResult() {
+  const out = {
+    timestamp: new Date().toISOString(), playSide,
+    chart: chartData ? { title:chartData.title, difficulty:chartData.diff } : null,
+    mapping: mappedOrig.map((orig,disp) => ({
+      displayLane: disp+1, originalLane: orig,
+      keyType: orig===null ? null : (KEY_TYPE[orig-1]?'white':'black'),
+      hitCount: hitCount[disp],
+    })),
+    totalHits: hitCount.reduce((a,b)=>a+b,0),
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
+  a.download = `iidx_random_${Date.now()}.json`;
+  a.click(); lg('エクスポート完了','lok');
+}
+
+function sp(name, val) {
+  params[name] = val;
+  const k = name.charAt(0).toUpperCase() + name.slice(1);
+  document.getElementById('v'+k).textContent = val;
+}
+
+function setSide(s) {
+  playSide = s;
+  document.getElementById('s1p').classList.toggle('on', s==='1P');
+  document.getElementById('s2p').classList.toggle('on', s==='2P');
+  lg('プレイサイド: '+s);
+}
+
+// ═══════════════════════════════════════════════════
+// 初期化
+// ═══════════════════════════════════════════════════
+(function init() {
+  // chartCanvas リサイズ監視
+  new ResizeObserver(() => drawChartPreview())
+    .observe(document.querySelector('.preview-wrap'));
+
+  // ウィンドウリサイズ時にROIを再描画
+  window.addEventListener('resize', () => { drawROI(); });
+
+  updateUI();
+  lg('IIDX RANDOM Analyzer 起動','lok');
+  lg('映像ソース選択 → ROIをドラッグ設定 → 解析開始');
+})();
+</script>
+</body>
+</html>
