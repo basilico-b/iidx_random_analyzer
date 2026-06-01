@@ -343,6 +343,39 @@ input[type=range]::-webkit-slider-thumb {
 .log-info { color: var(--accent); }
 .log-err { color: var(--red); }
 
+.app-footer {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 320px;
+  gap: 1px;
+  min-height: 240px;
+  overflow: hidden;
+}
+.footer-panel {
+  background: var(--surface);
+  padding: 12px 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.footer-panel .block-title {
+  margin-bottom: 12px;
+}
+.footer-panel .chart-ref-canvas-wrap {
+  height: 160px;
+}
+.footer-panel .chart-index-list,
+.footer-panel .lane-rows {
+  max-height: none;
+}
+.footer-log {
+  min-width: 320px;
+}
+.footer-log #logBox {
+  height: calc(100% - 24px);
+}
+
 /* ─── ROI MODE ─── */
 #roiCanvas.drawing { cursor: crosshair; }
 
@@ -456,40 +489,32 @@ input[type=range]::-webkit-slider-thumb {
       </div>
     </div>
 
-    <!-- レーンマッピング結果 -->
-    <div class="mapping-scroll">
-      <div class="block-title">RANDOM MAPPING</div>
-
-      <!-- 信頼度 -->
-      <div class="conf-row">
-        <span class="conf-label">CONFIDENCE</span>
-        <span class="conf-pct" id="confPct">0%</span>
-      </div>
-      <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
-
-      <!-- レーン行 (JS生成) -->
-      <div class="lane-rows" id="laneRows"></div>
-
-      <!-- 正規譜面プレビュー -->
-      <div class="chart-ref-title">REFERENCE CHART (NORMAL)</div>
-      <div class="chart-ref-canvas-wrap">
-        <canvas id="chartRefCanvas"></canvas>
-      </div>
-
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn" onclick="resetMapping()">RESET</button>
-        <button class="btn" onclick="exportResult()">EXPORT</button>
-      </div>
-    </div>
-
-    <!-- ログ -->
-    <div class="log-block">
-      <div class="block-title">LOG</div>
-      <div id="logBox"></div>
-    </div>
-
-  </div><!-- /right-panel -->
+</div><!-- /right-panel -->
 </div><!-- /main -->
+
+<footer class="app-footer">
+  <div class="footer-panel">
+    <div class="block-title">RANDOM MAPPING</div>
+    <div class="conf-row">
+      <span class="conf-label">CONFIDENCE</span>
+      <span class="conf-pct" id="confPct">0%</span>
+    </div>
+    <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+    <div class="lane-rows" id="laneRows"></div>
+    <div class="chart-ref-title">REFERENCE CHART (NORMAL)</div>
+    <div class="chart-ref-canvas-wrap">
+      <canvas id="chartRefCanvas"></canvas>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn" onclick="resetMapping()">RESET</button>
+      <button class="btn" onclick="exportResult()">EXPORT</button>
+    </div>
+  </div>
+  <div class="footer-panel footer-log">
+    <div class="block-title">LOG</div>
+    <div id="logBox"></div>
+  </div>
+</footer>
 
 <script>
 // =====================================================
