@@ -327,72 +327,77 @@ input[type=range]::-webkit-slider-thumb {
     <div class="roi-guide" id="roiGuide">ドラッグして解析エリアを設定</div>
   </div>
 
-  <!-- ══ 右パネル ══ -->
+  <!-- ── 右: コントロール ── -->
   <div class="rpanel">
 
     <!-- 映像ソース -->
     <div class="block">
       <div class="blabel">VIDEO SOURCE</div>
       <div class="brow">
-        <button class="btn" id="bsc" onclick="startSrc('screen')">🖥 SCREEN</button>
-        <button class="btn" id="bca" onclick="startSrc('camera')">📷 CAMERA</button>
-        <button class="btn danger" id="bstop" onclick="stopSrc()" style="display:none">■ STOP</button>
+        <button class="btn" id="btnScreen" onclick="startSource('screen')">🖥 SCREEN</button>
+        <button class="btn" id="btnCamera" onclick="startSource('camera')">📷 CAMERA</button>
+        <button class="btn danger" id="btnStop" onclick="stopSource()" style="display:none">■ STOP</button>
       </div>
     </div>
 
+    <div style="flex: 1; overflow-y: auto; min-height: 0;">
     <!-- プレイサイド -->
     <div class="block">
       <div class="blabel">PLAY SIDE</div>
       <div class="stg">
         <button class="sb on" id="s1p" onclick="setSide('1P')">1P (LEFT)</button>
-        <button class="sb"    id="s2p" onclick="setSide('2P')">2P (RIGHT)</button>
+        <button class="sb" id="s2p" onclick="setSide('2P')">2P (RIGHT)</button>
       </div>
     </div>
 
-    <!-- 譜面URL -->
+    <!-- 譜面データ読込 -->
     <div class="block">
-      <div class="blabel">TEXTAGE.CC CHART</div>
-      <input class="urlinp" id="turl"
-        placeholder="https://textage.cc/score/XX/song.html?1A..."
-        oninput="onUrl(this.value)">
+      <div class="blabel">CHART DATA 読込</div>
       <div class="brow" style="margin-bottom:6px">
-        <button class="btn on" id="bfetch" onclick="fetchChart()" disabled>読込</button>
-        <button class="btn" onclick="clearChart()">クリア</button>
+        <button class="btn" id="btnIndexLoad" onclick="fetchChartIndex()">INDEX 読込</button>
+        <button class="btn" id="btnFetch" onclick="fetchChart()">CHART 読込</button>
       </div>
-      <div class="chart-info" id="cinfo">
-        <span style="color:var(--muted)">textage.cc の1P譜面URLを貼り付け</span>
+      <input class="urlinp" id="textageUrl"
+        placeholder="textage.cc URL または ./chartData.json を入力してください"
+        oninput="onUrlInput(this.value)">
+      <div class="brow" style="margin:6px 0 8px">
+        <input class="urlinp" id="chartIndexSearch" placeholder="曲名 / 版 / 種別で検索" oninput="renderChartIndexList(filterChartIndex(this.value))">
       </div>
+      <div class="chart-info" id="chartInfoBox">
+        <span style="color:var(--muted)">textage.cc URL または ./chartData.json を入力して読込ボタンを押してください</span>
+      </div>
+      <div id="chartIndexList"></div>
     </div>
 
-    <!-- 解析制御 -->
+    <!-- ROI 設定 + 解析 -->
     <div class="block">
-      <div class="blabel">ANALYSIS</div>
+      <div class="blabel">ROI + ANALYSIS</div>
+      <div style="font-family:var(--fm);font-size:9px;color:var(--muted);margin-bottom:6px;line-height:1.7" id="roiHintText">
+        映像上をドラッグして判定ライン付近の<br>7鍵(SCRATCH含む)エリアを囲んでください
+      </div>
       <div class="brow">
-        <button class="btn" onclick="resetMap()">RESET</button>
-        <button class="btn on" id="ban" onclick="toggleAn()" disabled>● 解析開始</button>
+        <button class="btn" onclick="clearROI()">ROI クリア</button>
+        <button class="btn on" id="btnAnalyze" onclick="toggleAnalysis()" disabled>● 解析開始</button>
       </div>
     </div>
 
     <!-- 検出パラメータ -->
     <div class="block">
-      <div class="blabel">DETECTION</div>
+      <div class="blabel">DETECTION PARAMS</div>
       <div class="prow">
         <span class="pname">THRESHOLD</span>
-        <input type="range" id="pTh" min="20" max="230" value="90"
-          oninput="sp('threshold',+this.value)">
-        <span class="pval" id="vTh">90</span>
+        <input type="range" id="prThreshold" min="20" max="230" value="90" oninput="setParam('threshold',+this.value)">
+        <span class="pval" id="pvThreshold">90</span>
       </div>
       <div class="prow">
         <span class="pname">DECAY FR.</span>
-        <input type="range" id="pDe" min="2" max="40" value="12"
-          oninput="sp('decay',+this.value)">
-        <span class="pval" id="vDe">12</span>
+        <input type="range" id="prDecay" min="2" max="40" value="12" oninput="setParam('decay',+this.value)">
+        <span class="pval" id="pvDecay">12</span>
       </div>
       <div class="prow">
         <span class="pname">MIN HITS</span>
-        <input type="range" id="pMh" min="5" max="200" value="30"
-          oninput="sp('minHits',+this.value)">
-        <span class="pval" id="vMh">30</span>
+        <input type="range" id="prMinHits" min="5" max="200" value="30" oninput="setParam('minHits',+this.value)">
+        <span class="pval" id="pvMinHits">30</span>
       </div>
     </div>
 
@@ -401,20 +406,21 @@ input[type=range]::-webkit-slider-thumb {
       <div class="blabel">RANDOM MAPPING</div>
       <div class="conf-row">
         <span class="conf-label">CONFIDENCE</span>
-        <span class="conf-pct" id="cpct">0%</span>
+        <span class="conf-pct" id="confPct">0%</span>
       </div>
-      <div class="conf-track"><div class="conf-fill" id="cfill"></div></div>
-      <div class="lrows" id="lrows"></div>
-      <div class="preview-label">NOTES PREVIEW</div>
-      <div class="preview-wrap">
-        <canvas id="chartCanvas"></canvas>
+      <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+      <div class="lrows" id="laneRows"></div>
+      <div class="blabel">CHART PREVIEW</div>
+      <div style="height:120px;background:var(--s3);border:1px solid var(--bd);border-radius:2px">
+        <canvas id="chartRefCanvas"></canvas>
       </div>
-      <div class="brow">
-        <button class="btn" onclick="exportResult()">EXPORT JSON</button>
+      <div class="brow" style="margin-top:10px">
+        <button class="btn" onclick="resetMapping()">RESET</button>
+        <button class="btn" onclick="exportResult()">EXPORT</button>
       </div>
     </div>
+    </div>
 
-    <!-- ログ -->
     <div class="logblock">
       <div class="blabel">LOG</div>
       <div id="logbox"></div>
@@ -424,574 +430,601 @@ input[type=range]::-webkit-slider-thumb {
 </div><!-- /layout -->
 
 <script>
-'use strict';
-
-// ═══════════════════════════════════════════════════
+// =====================================================
 // 定数
-// ═══════════════════════════════════════════════════
-const LANES = 7;
-// KEY_TYPE[0..6] → lane1..7: true=白鍵 false=黒鍵
-const KEY_TYPE = [false, true, false, true, false, true, false];
+// =====================================================
+const LANES = 8; // 0=SCRATCH, 1-7=keys
+// KEY_TYPE[i] (i=0..7): null=scratch, true=white, false=black
+const KEY_TYPE = [null, false, true, false, true, false, true, false];
 const API_BASE = '/api/getChart?url=';
-const HANDLE_PX = 8;   // リサイズハンドル検出範囲(px)
-const ROI_MIN   = 40;  // ROI最小サイズ(px)
+const CHART_DATA_DIR = './charts';
+const DEFAULT_CHART_DATA_FILE = './chartData.json';
+const CHART_INDEX_FILE = './chartIndex.json';
 
-// ═══════════════════════════════════════════════════
+// =====================================================
 // 状態
-// ═══════════════════════════════════════════════════
-let stream      = null;
-let anRunning   = false;
-let rafId       = null;
-let playSide    = '1P';
-let params      = { threshold:90, decay:12, minHits:30 };
-let hitCount    = new Array(LANES).fill(0);
-let brightness  = new Array(LANES).fill(0);
-let decayTmr    = new Array(LANES).fill(0);
-let mappedOrig  = new Array(LANES).fill(null);
-let chartData   = null;
+// =====================================================
+let stream = null;
+let analyzeRunning = false;
+let rafId = null;
+let playSide = '1P';
+let params = { threshold:90, decay:12, minHits:30 };
+let hitCount = new Array(LANES).fill(0);
+let brightness = new Array(LANES).fill(0);
+let decayTimer = new Array(LANES).fill(0);
+let mappedOrig = new Array(LANES).fill(null);
+let chartData = null;
+let chartIndex = null;
+let chartIndexDisplay = [];
+let selectedChart = null;
 
-// ROI: 映像ピクセル座標（映像解像度基準）
-// null のとき「未設定」→ 映像領域全体を使う代わりに常に描画
 let roi = null;
+let dragging = false;
+let dragStart = {x:0,y:0};
 
-// ROI 操作状態
-// mode: 'idle'|'draw'|'move'|'resize'
-let roiDrag = { mode:'idle', sx:0, sy:0, origRoi:null, edge:null };
-
-// ═══════════════════════════════════════════════════
+// =====================================================
 // DOM
-// ═══════════════════════════════════════════════════
-const vid   = document.getElementById('vid');
-const ocanv = document.getElementById('overlayCanvas');
-const rcanv = document.getElementById('roiCanvas');
-const octx  = ocanv.getContext('2d');
-const rctx  = rcanv.getContext('2d');
-const cc    = document.getElementById('chartCanvas');
-const cctx  = cc.getContext('2d');
+// =====================================================
+const video      = document.getElementById('vid');
+const overCanvas = document.getElementById('overlayCanvas');
+const roiCanvas  = document.getElementById('roiCanvas');
+const octx       = overCanvas.getContext('2d');
+const rctx       = roiCanvas.getContext('2d');
+const refCanvas  = document.getElementById('chartRefCanvas');
+const rfctx      = refCanvas.getContext('2d');
+const noSource   = document.getElementById('nosrc');
+const offscreenCanvas = document.createElement('canvas');
+const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
-// ═══════════════════════════════════════════════════
+// =====================================================
+// ユーティリティ関数
+// =====================================================
+function displayLaneToChartLane(displayLane) {
+  if(playSide === '2P') {
+    return displayLane === LANES - 1 ? 0 : displayLane + 1;
+  }
+  return displayLane;
+}
+
+function chartLaneToDisplayLane(chartLane) {
+  if(playSide === '2P') {
+    return chartLane === 0 ? LANES - 1 : chartLane - 1;
+  }
+  return chartLane;
+}
+
+function displayLaneLabel(displayLane) {
+  if(playSide === '2P') {
+    return displayLane === LANES - 1 ? 'S' : String(displayLane + 1);
+  }
+  return displayLane === 0 ? 'S' : String(displayLane);
+}
+
+function chartLaneLabel(chartLane) {
+  return chartLane === 0 ? 'S' : String(chartLane);
+}
+
+function getLaneMetrics(totalWidth) {
+  const LANE_WIDTH_RATIO = [0.8,1,1,1,1,1,1,1];
+  const totalRatio = LANE_WIDTH_RATIO.reduce((sum, r) => sum + r, 0);
+  const widths = LANE_WIDTH_RATIO.map(r => totalWidth * r / totalRatio);
+  const offsets = [0];
+  for(let i=1;i<widths.length;i++){
+    offsets.push(offsets[i-1] + widths[i-1]);
+  }
+  return { widths, offsets };
+}
+
+function getLaneColor(chartLane) {
+  if(chartLane === 0) return 'rgba(255,68,85,0.85)';
+  return chartLane % 2 === 1 ? 'rgba(255,255,255,0.85)' : 'rgba(68,136,255,0.85)';
+}
+
+// =====================================================
 // ログ
-// ═══════════════════════════════════════════════════
-function lg(msg, cls='') {
-  const b = document.getElementById('logbox');
+// =====================================================
+function log(msg, cls='') {
+  const box = document.getElementById('logbox');
   const d = document.createElement('div');
-  if (cls) d.className = cls;
+  if(cls) d.className = cls;
   const t = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   d.textContent = `[${t}] ${msg}`;
-  b.appendChild(d);
-  b.scrollTop = b.scrollHeight;
-  while (b.children.length > 100) b.firstChild.remove();
-}
-function setSt(l, s='') {
-  document.getElementById('stlbl').textContent = l;
-  document.getElementById('dot').className = 'dot' + (s ? ' '+s : '');
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+  while(box.children.length > 80) box.firstChild.remove();
 }
 
-// ═══════════════════════════════════════════════════
+// =====================================================
+// ステータス
+// =====================================================
+function setStatus(label, state='') {
+  document.getElementById('stlbl').textContent = label;
+  document.getElementById('dot').className = 'dot' + (state ? ' '+state : '');
+}
+
+// =====================================================
 // 映像ソース
-// ═══════════════════════════════════════════════════
-async function startSrc(type) {
+// =====================================================
+async function startSource(type) {
   try {
-    if (stream) stopSrc();
-    stream = type === 'screen'
-      ? await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60,cursor:'never'},audio:false})
-      : await navigator.mediaDevices.getUserMedia({video:{width:1920,height:1080,frameRate:60},audio:false});
-    vid.srcObject = stream;
-    await vid.play();
-    document.getElementById('nosrc').style.display = 'none';
-    document.getElementById('bstop').style.display = '';
-    document.getElementById('bsc').classList.toggle('on', type==='screen');
-    document.getElementById('bca').classList.toggle('on', type==='camera');
-    document.getElementById('ban').disabled = false;
-    setSt('LIVE','live');
-    stream.getVideoTracks()[0].onended = () => stopSrc();
-    vid.addEventListener('loadedmetadata', () => {
-      syncCanvasSize();
-      lg(`映像: ${vid.videoWidth}×${vid.videoHeight}`,'linfo');
-      // ROIが未設定なら中央に初期ROIを置く
-      if (!roi) setDefaultROI();
-      showGuide();
+    if(stream) stopSource();
+    if(type === 'screen') {
+      stream = await navigator.mediaDevices.getDisplayMedia({video:{frameRate:60,cursor:'never'},audio:false});
+    } else {
+      stream = await navigator.mediaDevices.getUserMedia({video:{width:1920,height:1080,frameRate:60},audio:false});
+    }
+    video.srcObject = stream;
+    await video.play();
+    noSource.style.display = 'none';
+    document.getElementById('btnStop').style.display = '';
+    document.getElementById('btnScreen').classList.toggle('on', type==='screen');
+    document.getElementById('btnCamera').classList.toggle('on', type==='camera');
+    document.getElementById('btnAnalyze').disabled = false;
+    setStatus('LIVE', 'live');
+    stream.getVideoTracks()[0].onended = () => stopSource();
+    video.addEventListener('loadedmetadata', () => {
+      const w=video.videoWidth, h=video.videoHeight;
+      overCanvas.width = roiCanvas.width = w;
+      overCanvas.height = roiCanvas.height = h;
+      log(`映像: ${w}×${h}`, 'log-info');
     }, {once:true});
-    lg(`${type==='screen'?'画面':'カメラ'}開始`,'lok');
+    log(`${type==='screen'?'画面':'カメラ'}キャプチャ開始`, 'log-ok');
   } catch(e) {
-    lg('映像取得失敗: '+e.message,'lerr');
+    log('映像取得失敗: '+e.message, 'log-err');
   }
 }
 
-function stopSrc() {
-  stream?.getTracks().forEach(t=>t.stop()); stream = null;
-  vid.srcObject = null;
-  document.getElementById('nosrc').style.display = '';
-  document.getElementById('bstop').style.display = 'none';
-  document.getElementById('bsc').classList.remove('on');
-  document.getElementById('bca').classList.remove('on');
-  document.getElementById('ban').disabled = true;
-  stopAn(); setSt('STANDBY');
-  lg('映像停止');
+function stopSource() {
+  stream?.getTracks().forEach(t=>t.stop());
+  stream = null;
+  video.srcObject = null;
+  noSource.style.display = '';
+  document.getElementById('btnStop').style.display = 'none';
+  document.getElementById('btnScreen').classList.remove('on');
+  document.getElementById('btnCamera').classList.remove('on');
+  document.getElementById('btnAnalyze').disabled = true;
+  stopAnalysis();
+  setStatus('STANDBY');
+  log('映像停止');
 }
 
-function syncCanvasSize() {
-  const vw = vid.videoWidth, vh = vid.videoHeight;
-  ocanv.width = rcanv.width = vw;
-  ocanv.height = rcanv.height = vh;
-}
-
-function setDefaultROI() {
-  const vw = vid.videoWidth, vh = vid.videoHeight;
-  // 映像中央 60% × 20% を初期ROI
-  const w = Math.floor(vw * 0.60);
-  const h = Math.floor(vh * 0.20);
-  const x = Math.floor((vw - w) / 2);
-  const y = Math.floor(vh * 0.55);
-  roi = {x, y, w, h};
-  drawROI();
-}
-
-function showGuide() {
-  const g = document.getElementById('roiGuide');
-  g.classList.add('show');
-  setTimeout(() => g.classList.remove('show'), 3000);
-}
-
-// ═══════════════════════════════════════════════════
-// ROI ─ ドラッグ＆リサイズ
-// ═══════════════════════════════════════════════════
-
-/** canvas座標(映像ピクセル)へ変換 */
-function toVidCoord(e) {
-  const r  = rcanv.getBoundingClientRect();
-  const sx = rcanv.width  / r.width;
-  const sy = rcanv.height / r.height;
+// =====================================================
+// ROI ドラッグ
+// =====================================================
+function getCanvasPos(e) {
+  const r = roiCanvas.getBoundingClientRect();
+  const sx = roiCanvas.width / r.width;
+  const sy = roiCanvas.height / r.height;
   const cx = e.touches ? e.touches[0].clientX : e.clientX;
   const cy = e.touches ? e.touches[0].clientY : e.clientY;
-  return { x: (cx - r.left)*sx, y: (cy - r.top)*sy };
+  return { x:(cx-r.left)*sx, y:(cy-r.top)*sy };
 }
 
-/**
- * カーソル位置がROIのどのエッジ/コーナーにあるかを判定
- * 戻り値: 'nw'|'n'|'ne'|'e'|'se'|'s'|'sw'|'w'|'move'|null
- */
-function getEdge(px, py) {
-  if (!roi) return null;
-  const {x,y,w,h} = roi;
-  const inH = px >= x - HANDLE_PX && px <= x + w + HANDLE_PX;
-  const inV = py >= y - HANDLE_PX && py <= y + h + HANDLE_PX;
-  if (!inH || !inV) return null;
-
-  const onL = Math.abs(px - x)     <= HANDLE_PX;
-  const onR = Math.abs(px - (x+w)) <= HANDLE_PX;
-  const onT = Math.abs(py - y)     <= HANDLE_PX;
-  const onB = Math.abs(py - (y+h)) <= HANDLE_PX;
-
-  if (onT && onL) return 'nw';
-  if (onT && onR) return 'ne';
-  if (onB && onL) return 'sw';
-  if (onB && onR) return 'se';
-  if (onT) return 'n';
-  if (onB) return 's';
-  if (onL) return 'w';
-  if (onR) return 'e';
-
-  // ROI内部 → move
-  if (px > x && px < x+w && py > y && py < y+h) return 'move';
-  return null;
-}
-
-rcanv.addEventListener('mousemove', onMouseMove);
-rcanv.addEventListener('mousedown', onMouseDown);
-window.addEventListener('mouseup',  onMouseUp);
-rcanv.addEventListener('touchstart', e=>{ e.preventDefault(); onMouseDown(e); }, {passive:false});
-rcanv.addEventListener('touchmove',  e=>{ e.preventDefault(); onMouseMove(e); }, {passive:false});
-window.addEventListener('touchend',  e=>{ onMouseUp(e); });
-
-function onMouseMove(e) {
-  const {x, y} = toVidCoord(e);
-
-  if (roiDrag.mode === 'idle') {
-    // カーソル形状を更新
-    const edge = getEdge(x, y);
-    if (!edge)                rcanv.className = stream ? 'crosshair' : '';
-    else if (edge==='move')   rcanv.className = 'move';
-    else                      rcanv.className = 'resize-'+edge;
-    return;
+roiCanvas.addEventListener('mousedown', e => { if(!stream) return; dragging=true; dragStart=getCanvasPos(e); });
+roiCanvas.addEventListener('mousemove', e => {
+  if(!dragging) return;
+  const p=getCanvasPos(e);
+  roi = {x:Math.min(dragStart.x,p.x), y:Math.min(dragStart.y,p.y), w:Math.abs(p.x-dragStart.x), h:Math.abs(p.y-dragStart.y)};
+  drawROI();
+});
+roiCanvas.addEventListener('mouseup', e => {
+  dragging=false;
+  if(roi?.w>10 && roi?.h>10) {
+    document.getElementById('roiHintText').innerHTML = `ROI設定済: ${Math.round(roi.w)}×${Math.round(roi.h)}px<br>解析を開始してください`;
+    log(`ROI: x=${Math.round(roi.x)} y=${Math.round(roi.y)} w=${Math.round(roi.w)} h=${Math.round(roi.h)}`, 'log-ok');
   }
+});
 
-  const dx = x - roiDrag.sx;
-  const dy = y - roiDrag.sy;
-
-  if (roiDrag.mode === 'draw') {
-    const ox = roiDrag.sx, oy = roiDrag.sy;
-    roi = {
-      x: Math.min(ox, x),
-      y: Math.min(oy, y),
-      w: Math.max(ROI_MIN, Math.abs(x - ox)),
-      h: Math.max(ROI_MIN, Math.abs(y - oy)),
-    };
-    drawROI();
-    return;
-  }
-
-  if (roiDrag.mode === 'move') {
-    const vw = rcanv.width, vh = rcanv.height;
-    const or = roiDrag.origRoi;
-    roi = {
-      x: Math.max(0, Math.min(vw - or.w, or.x + dx)),
-      y: Math.max(0, Math.min(vh - or.h, or.y + dy)),
-      w: or.w, h: or.h,
-    };
-    drawROI(); return;
-  }
-
-  if (roiDrag.mode === 'resize') {
-    const or  = roiDrag.origRoi;
-    const vw  = rcanv.width, vh = rcanv.height;
-    let {x:rx, y:ry, w:rw, h:rh} = {...or};
-    const edge = roiDrag.edge;
-
-    if (edge.includes('e')) { rw = Math.max(ROI_MIN, or.w + dx); }
-    if (edge.includes('s')) { rh = Math.max(ROI_MIN, or.h + dy); }
-    if (edge.includes('w')) {
-      const nw = Math.max(ROI_MIN, or.w - dx);
-      rx = or.x + or.w - nw; rw = nw;
-    }
-    if (edge.includes('n')) {
-      const nh = Math.max(ROI_MIN, or.h - dy);
-      ry = or.y + or.h - nh; rh = nh;
-    }
-    roi = {
-      x: Math.max(0, rx),
-      y: Math.max(0, ry),
-      w: Math.min(vw - Math.max(0,rx), rw),
-      h: Math.min(vh - Math.max(0,ry), rh),
-    };
-    drawROI(); return;
-  }
-}
-
-function onMouseDown(e) {
-  if (!stream) return;
-  const {x, y} = toVidCoord(e);
-  const edge = getEdge(x, y);
-
-  if (!roi || !edge) {
-    // ROI外 → 新規描画
-    roiDrag = { mode:'draw', sx:x, sy:y, origRoi:null, edge:null };
-    roi = {x, y, w:ROI_MIN, h:ROI_MIN};
-  } else if (edge === 'move') {
-    roiDrag = { mode:'move', sx:x, sy:y, origRoi:{...roi}, edge:null };
-  } else {
-    roiDrag = { mode:'resize', sx:x, sy:y, origRoi:{...roi}, edge };
-  }
-}
-
-function onMouseUp(e) {
-  if (roiDrag.mode !== 'idle') {
-    const prev = roiDrag.mode;
-    roiDrag = { mode:'idle', sx:0, sy:0, origRoi:null, edge:null };
-    if (prev === 'draw' && roi && roi.w > ROI_MIN && roi.h > ROI_MIN) {
-      lg(`ROI設定: x=${Math.round(roi.x)} y=${Math.round(roi.y)} w=${Math.round(roi.w)} h=${Math.round(roi.h)}`,'lok');
-    }
-    drawROI();
-  }
-}
-
-// ─── ROI 描画 ─────────────────────────────────
 function drawROI() {
-  rctx.clearRect(0, 0, rcanv.width, rcanv.height);
-  if (!roi) return;
-
-  const {x,y,w,h} = roi;
-
-  // 外側を暗くする
-  rctx.save();
-  rctx.fillStyle = 'rgba(0,0,0,.55)';
-  rctx.fillRect(0,0,rcanv.width,rcanv.height);
-  rctx.clearRect(x,y,w,h);
-  rctx.restore();
-
-  // 枠
-  rctx.strokeStyle = '#00e5ff';
-  rctx.lineWidth   = 1.5;
-  rctx.strokeRect(x,y,w,h);
-
-  // コーナーハンドル
-  const hs = 6;
-  rctx.fillStyle = '#00e5ff';
-  [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([cx,cy])=>{
-    rctx.fillRect(cx-hs/2, cy-hs/2, hs, hs);
-  });
-  // 中間ハンドル
-  rctx.fillStyle = 'rgba(0,229,255,.5)';
-  [[x+w/2,y],[x+w/2,y+h],[x,y+h/2],[x+w,y+h/2]].forEach(([cx,cy])=>{
-    rctx.fillRect(cx-hs/2, cy-hs/2, hs, hs);
-  });
-
-  // レーン分割線
-  rctx.strokeStyle = 'rgba(0,229,255,.25)';
-  rctx.lineWidth   = 0.5;
-  rctx.setLineDash([4,4]);
-  for (let i=1; i<LANES; i++) {
-    const lx = x + w*(i/LANES);
-    rctx.beginPath(); rctx.moveTo(lx,y); rctx.lineTo(lx,y+h); rctx.stroke();
+  rctx.clearRect(0,0,roiCanvas.width,roiCanvas.height);
+  if(!roi||roi.w<2||roi.h<2) return;
+  rctx.fillStyle='rgba(0,0,0,0.5)';
+  rctx.fillRect(0,0,roiCanvas.width,roiCanvas.height);
+  rctx.clearRect(roi.x,roi.y,roi.w,roi.h);
+  rctx.strokeStyle='#00d4ff';
+  rctx.lineWidth=1.5;
+  rctx.strokeRect(roi.x,roi.y,roi.w,roi.h);
+  rctx.strokeStyle='rgba(0,212,255,0.3)';
+  rctx.lineWidth=0.5;
+  rctx.setLineDash([3,3]);
+  const metrics = getLaneMetrics(roi.w);
+  for(let i=1;i<LANES;i++){
+    const lx = roi.x + metrics.offsets[i];
+    rctx.beginPath(); rctx.moveTo(lx,roi.y); rctx.lineTo(lx,roi.y+roi.h); rctx.stroke();
   }
   rctx.setLineDash([]);
-
-  // レーン番号
-  rctx.fillStyle = 'rgba(0,229,255,.7)';
-  rctx.font      = '10px "Share Tech Mono"';
-  rctx.textAlign = 'center';
-  for (let i=0; i<LANES; i++) {
-    const lx = x + w*((i+.5)/LANES);
-    rctx.fillText(i+1, lx, y - 4);
+  rctx.fillStyle='#00d4ff';
+  rctx.font='10px "Share Tech Mono"';
+  for(let i=0;i<LANES;i++){
+    const lx = roi.x + metrics.offsets[i] + metrics.widths[i] * 0.5;
+    rctx.fillText(displayLaneLabel(i), lx-8, roi.y-5);
   }
-  rctx.textAlign = 'left';
 }
 
-// ═══════════════════════════════════════════════════
-// 解析ループ
-// ═══════════════════════════════════════════════════
-function toggleAn() { anRunning ? stopAn() : startAn(); }
+function clearROI() {
+  roi=null;
+  rctx.clearRect(0,0,roiCanvas.width,roiCanvas.height);
+  document.getElementById('roiHintText').innerHTML='映像上をドラッグして判定ライン付近の<br>8鍵(SCRATCH含む)エリアを囲んでください';
+  log('ROIクリア');
+}
 
-function startAn() {
-  if (!stream) { lg('映像ソースを選択してください','lwarn'); return; }
-  if (!roi)    { lg('映像上でROIを設定してください','lwarn'); return; }
-  anRunning = true;
-  hitCount.fill(0); brightness.fill(0); decayTmr.fill(0); mappedOrig.fill(null);
-  document.getElementById('ban').textContent = '■ 解析停止';
-  setSt('DETECTING','detect');
-  lg('解析開始','lok');
+// =====================================================
+// 解析
+// =====================================================
+function toggleAnalysis() {
+  if(analyzeRunning) stopAnalysis();
+  else startAnalysis();
+}
+
+function startAnalysis() {
+  if(!stream){log('映像ソースを選択してください','log-warn');return;}
+  if(!roi){log('ROIを設定してください','log-warn');return;}
+  analyzeRunning=true;
+  hitCount.fill(0); brightness.fill(0); decayTimer.fill(0); mappedOrig.fill(null);
+  document.getElementById('btnAnalyze').textContent='■ 解析停止';
+  setStatus('DETECTING','detect');
+  log('解析開始','log-ok');
   loop();
 }
-function stopAn() {
-  anRunning = false;
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-  document.getElementById('ban').textContent = '● 解析開始';
-  if (stream) setSt('LIVE','live');
-  lg('解析停止');
+
+function stopAnalysis() {
+  analyzeRunning=false;
+  if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+  document.getElementById('btnAnalyze').textContent='● 解析開始';
+  if(stream) setStatus('LIVE','live');
+  log('解析停止');
 }
+
 function loop() {
-  if (!anRunning) return;
+  if(!analyzeRunning) return;
   processFrame();
-  rafId = requestAnimationFrame(loop);
+  rafId=requestAnimationFrame(loop);
 }
 
-// ─── フレーム処理 ─────────────────────────────
+// =====================================================
+// フレーム処理
+// =====================================================
 function processFrame() {
-  if (!roi || vid.readyState < 2) return;
-  const vw = vid.videoWidth, vh = vid.videoHeight;
-  if (!vw || !vh) return;
+  if(!roi||video.readyState<2) return;
+  const vw=video.videoWidth, vh=video.videoHeight;
+  if(!vw||!vh) return;
 
-  // offscreen canvas でピクセルサンプリング
-  const tmp = document.createElement('canvas');
-  tmp.width = vw; tmp.height = vh;
-  const tx = tmp.getContext('2d');
-  tx.drawImage(vid, 0, 0);
+  offscreenCanvas.width = vw;
+  offscreenCanvas.height = vh;
+  offscreenCtx.drawImage(video,0,0);
 
-  // ROI中央±12%の高さ範囲をサンプリング
-  const sCY = roi.y + roi.h * 0.5;
-  const sHH = Math.max(2, roi.h * 0.22);
-  const det = [];
-
-  for (let l=0; l<LANES; l++) {
-    const lx = roi.x + roi.w*(l/LANES);
-    const lw = roi.w/LANES;
+  const sampleCY = roi.y + roi.h*0.5;
+  const sampleHH = Math.max(1, roi.h*0.25);
+  const detected = [];
+  const metrics = getLaneMetrics(roi.w);
+  
+  for(let l=0;l<LANES;l++){
+    const chartLane = displayLaneToChartLane(l);
+    const lx = roi.x + metrics.offsets[l];
+    const lw = metrics.widths[l];
     const sx = Math.floor(lx + lw*0.15);
-    const sw = Math.max(1, Math.floor(lw*0.70));
-    const sy = Math.max(0, Math.floor(sCY - sHH));
-    const sh = Math.max(1, Math.min(Math.floor(sHH*2), vh - sy));
-
+    const sw = Math.max(1, Math.floor(lw*0.7));
+    const sy = Math.floor(sampleCY - sampleHH);
+    const sh = Math.max(1, Math.floor(sampleHH*2));
     let img;
-    try { img = tx.getImageData(sx, sy, sw, sh); } catch(e) { continue; }
-
-    const d = img.data;
-    let sum = 0;
-    const pix = sw * sh;
-    for (let p=0; p<d.length; p+=4)
+    try { img=offscreenCtx.getImageData(sx,sy,sw,sh); } catch(e){continue;}
+    const d=img.data;
+    let sum=0;
+    for(let p=0;p<d.length;p+=4){
       sum += 0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2];
-    const avg = pix > 0 ? sum/pix : 0;
-    brightness[l] = avg;
-
-    if (avg > params.threshold) {
-      det.push(l);
-      hitCount[l]++;
-      decayTmr[l] = params.decay;
-    } else if (decayTmr[l] > 0) {
-      decayTmr[l]--;
+    }
+    const avg = sum / (sw*sh);
+    brightness[chartLane] = avg;
+    if(avg > params.threshold){
+      detected.push(chartLane);
+      hitCount[chartLane]++;
+      decayTimer[chartLane] = params.decay;
+    } else {
+      if(decayTimer[chartLane]>0) decayTimer[chartLane]--;
     }
   }
 
   updateMapping();
-  drawOverlay(det);
+  drawOverlay(detected);
   updateUI();
 }
 
-// ═══════════════════════════════════════════════════
+// =====================================================
 // マッピング推定
-// ═══════════════════════════════════════════════════
+// =====================================================
 function updateMapping() {
-  const total = hitCount.reduce((a,b)=>a+b, 0);
-  const cf = document.getElementById('cfill');
-  const cp = document.getElementById('cpct');
+  const total = hitCount.reduce((a,b)=>a+b,0);
+  const confEl = document.getElementById('confFill');
+  const pctEl  = document.getElementById('confPct');
 
-  if (total < params.minHits) {
+  if(!chartData?.laneFreq || total < params.minHits) {
     mappedOrig.fill(null);
-    cf.style.width = '0%'; cp.textContent = '0%'; return;
+    confEl.style.width='0%';
+    pctEl.textContent='0%';
+    return;
   }
 
+  const ref = chartData.laneFreq;
+  const refTotal = ref.reduce((a,b)=>a+b,0) || 1;
+  const hitTotal = total || 1;
+  const refNorm = ref.map(v=>v/refTotal);
+  const hitNorm = hitCount.map(v=>v/hitTotal);
+  const refSorted = [0,1,2,3,4,5,6,7].sort((a,b)=>refNorm[b]-refNorm[a]);
+  const hitSorted = [0,1,2,3,4,5,6,7].sort((a,b)=>hitNorm[b]-hitNorm[a]);
   const newMap = new Array(LANES).fill(null);
-
-  if (chartData && chartData.laneFreq) {
-    // ── 正規譜面の各レーン頻度(0-indexed) と 実測頻度をGreedyマッチング ──
-    // key=0(scratch)は除外済み、laneFreq[0..6] = lane1..7の頻度
-    const refFreq  = chartData.laneFreq;
-    const refTotal = refFreq.reduce((a,b)=>a+b, 0) || 1;
-    const hitTotal = total || 1;
-    const refNorm  = refFreq.map(v => v/refTotal);
-    const hitNorm  = hitCount.map(v => v/hitTotal);
-
-    // 元レーン(orig index 0-6)を頻度降順でソート
-    const origSorted = [0,1,2,3,4,5,6].sort((a,b)=>refNorm[b]-refNorm[a]);
-    // 表示レーン(disp 0-6)を頻度降順でソート
-    const dispSorted = [0,1,2,3,4,5,6].sort((a,b)=>hitNorm[b]-hitNorm[a]);
-    // i番目に頻度の高い表示レーン ← i番目に頻度の高い元レーン
-    dispSorted.forEach((disp, i) => { newMap[disp] = origSorted[i] + 1; }); // 1-indexed
-  } else {
-    // ── 譜面なし: 白鍵(2,4,6)>黒鍵(1,3,5,7)の一般傾向で近似 ──
-    const byFreq   = hitCount.map((c,i)=>({i,c})).sort((a,b)=>b.c-a.c);
-    const highDisp = byFreq.slice(0,3).map(x=>x.i).sort((a,b)=>a-b);
-    const lowDisp  = byFreq.slice(3).map(x=>x.i).sort((a,b)=>a-b);
-    [2,4,6].forEach((o,i) => { if(highDisp[i]!==undefined) newMap[highDisp[i]] = o; });
-    [1,3,5,7].forEach((o,i) => { if(lowDisp[i]!==undefined)  newMap[lowDisp[i]]  = o; });
-  }
+  hitSorted.forEach((dispLane,i)=>{
+    newMap[dispLane] = refSorted[i];
+  });
   mappedOrig = newMap;
 
-  // 信頼度
-  const avgF  = 1/LANES;
-  const vari  = hitCount.reduce((s,c)=>s+Math.pow(c/total-avgF,2),0)/LANES;
-  const maxV  = Math.pow(avgF,2)*(LANES-1)/LANES;
-  const dataSc = Math.min(1, total/250);
-  const uniSc  = chartData ? 0.85 : Math.max(0, 1 - vari/Math.max(maxV,1e-9)*3);
-  const conf   = Math.min(100, Math.round((dataSc*0.6 + uniSc*0.4)*100));
-  cf.style.width = conf+'%';
-  cf.style.background = conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
-  cp.textContent = conf+'%';
-  cp.style.color  = conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
+  const avgF = 1/LANES;
+  const variance = hitCount.reduce((s,c)=>s + Math.pow(c/total - avgF,2),0)/LANES;
+  const maxVar = Math.pow(avgF,2)*(LANES-1)/LANES;
+  const dataSc = Math.min(1,total/300);
+  const uniformSc = Math.max(0,1-variance/Math.max(maxVar,1e-9)*3);
+  const conf = Math.min(100,Math.round((dataSc*0.55+uniformSc*0.45)*100));
+  confEl.style.width=conf+'%';
+  confEl.style.background=conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
+  pctEl.textContent=conf+'%';
+  pctEl.style.color=conf>70?'var(--green)':conf>40?'var(--yellow)':'var(--red)';
 }
 
-// ═══════════════════════════════════════════════════
+// =====================================================
 // オーバーレイ描画
-// ═══════════════════════════════════════════════════
-function drawOverlay(det) {
-  octx.clearRect(0, 0, ocanv.width, ocanv.height);
-  if (!roi) return;
-  const {x,y,w,h} = roi;
+// =====================================================
+function drawOverlay(detected) {
+  const w=overCanvas.width, h=overCanvas.height;
+  octx.clearRect(0,0,w,h);
+  if(!roi) return;
 
-  for (let l=0; l<LANES; l++) {
-    const lx = x + w*(l/LANES);
-    const lw = w/LANES;
-    const dr = decayTmr[l]/params.decay;
-    if (det.includes(l)) {
-      octx.fillStyle = 'rgba(0,229,255,.4)';
-      octx.fillRect(lx, y, lw, h);
-    } else if (dr > 0) {
-      octx.fillStyle = `rgba(0,229,255,${dr*0.12})`;
-      octx.fillRect(lx, y, lw, h);
+  const metrics = getLaneMetrics(roi.w);
+  for(let l=0;l<LANES;l++){
+    const chartLane = displayLaneToChartLane(l);
+    const lx = roi.x + metrics.offsets[l];
+    const lw = metrics.widths[l];
+    const dr = decayTimer[chartLane]/params.decay;
+    if(dr>0){
+      const isActive = detected.includes(chartLane);
+      octx.fillStyle = isActive ? 'rgba(0,212,255,0.35)' : `rgba(0,212,255,${dr*0.15})`;
+      octx.fillRect(lx,roi.y,lw,roi.h);
     }
+    octx.strokeStyle='rgba(0,212,255,0.6)';
+    octx.lineWidth=1.2;
+    octx.strokeRect(roi.x,roi.y,roi.w,roi.h);
   }
-  // ROI枠（overlayで薄く重ねて光って見せる）
-  octx.strokeStyle = 'rgba(0,229,255,.35)';
-  octx.lineWidth = 1;
-  octx.strokeRect(x, y, w, h);
 }
 
-// ═══════════════════════════════════════════════════
+// =====================================================
 // UI 更新
-// ═══════════════════════════════════════════════════
+// =====================================================
 function updateUI() {
-  const cont = document.getElementById('lrows');
-  cont.innerHTML = '';
-  for (let l=0; l<LANES; l++) {
-    const orig   = mappedOrig[l];
-    const fp     = Math.min(100, (brightness[l]/255)*100);
-    const active = decayTmr[l] > 0;
-    const isW    = orig !== null && KEY_TYPE[orig-1];
-    const chk    = (chartData && orig !== null) ? '✓' : '';
+  const container=document.getElementById('laneRows');
+  container.innerHTML='';
+  const total=hitCount.reduce((a,b)=>a+b,0)||1;
+  for(let l=0;l<LANES;l++){
+    const chartLane = displayLaneToChartLane(l);
+    const orig=mappedOrig[l];
+    const fillPct=Math.min(100,(brightness[chartLane]/255)*100);
+    const active=decayTimer[chartLane]>0;
+    const origIsWhite = orig!==null && orig > 0 && KEY_TYPE[orig];
+    const matchIcon = chartData&&orig!==null ? '✓' : '';
 
-    const row = document.createElement('div');
-    row.className = 'lrow';
-    row.innerHTML = `
-      <div class="lidx">${l+1}</div>
+    const row=document.createElement('div');
+    row.className='lrow';
+    row.innerHTML=`
+      <div class="lidx">${displayLaneLabel(l)}</div>
       <div class="lbar-wrap">
-        <div class="lbar-fill" style="width:${fp}%;background:${active?'var(--ac)':'rgba(0,229,255,.15)'}"></div>
-        <div class="lbar-text" style="color:${active?'var(--ac)':'var(--muted)'}">${Math.round(brightness[l])}</div>
+        <div class="lbar-fill" style="width:${fillPct}%;background:${active?'var(--ac)':'rgba(0,212,255,0.18)'}"></div>
+        <div class="lbar-text" style="color:${active?'var(--ac)':'var(--muted)'}">${Math.round(brightness[chartLane])}</div>
       </div>
-      <div class="lorig ${orig===null?'uk':isW?'wk':'bk'}">${orig ?? '?'}</div>
-      <div class="lchk">${chk}</div>
+      <div class="lorig" style="color:${orig===null?'var(--muted)':orig===0?'var(--ac2)':origIsWhite?'var(--lk2)':'var(--lk1)'}">${orig===null?'?':chartLaneLabel(orig)}</div>
     `;
-    cont.appendChild(row);
+    container.appendChild(row);
   }
-  drawChartPreview();
+  drawRefChart();
 }
 
-// ═══════════════════════════════════════════════════
-// 譜面プレビュー
-// ═══════════════════════════════════════════════════
-function drawChartPreview() {
-  const pw = cc.offsetWidth  || 200;
-  const ph = cc.offsetHeight || 110;
-  cc.width = pw; cc.height = ph;
-  cctx.clearRect(0,0,pw,ph);
-  cctx.fillStyle = '#131320'; cctx.fillRect(0,0,pw,ph);
-
-  const lw = pw/LANES;
-  // レーン区切り
-  cctx.strokeStyle = 'rgba(255,255,255,.06)'; cctx.lineWidth = .5;
-  for (let i=1; i<LANES; i++) {
-    cctx.beginPath(); cctx.moveTo(i*lw,0); cctx.lineTo(i*lw,ph); cctx.stroke();
+// =====================================================
+// 譜面プレビュー描画
+// =====================================================
+function drawRefChart() {
+  const wrapper = refCanvas.parentElement;
+  const wrapperWidth = wrapper ? wrapper.clientWidth : 320;
+  const ch = wrapper?.clientHeight || 120;
+  const notes = chartData?.notes || [];
+  if(!notes.length){
+    refCanvas.width = wrapperWidth;
+    refCanvas.height = ch;
+    rfctx.clearRect(0,0,refCanvas.width,refCanvas.height);
+    rfctx.fillStyle='#16161f';
+    rfctx.fillRect(0,0,refCanvas.width,refCanvas.height);
+    rfctx.fillStyle='#3a3a55';
+    rfctx.font='9px "Share Tech Mono"';
+    rfctx.fillText('NO CHART DATA',8,20);
+    return;
   }
 
-  if (!chartData?.notes?.length) {
-    cctx.fillStyle='var(--muted)'; cctx.font='9px "Share Tech Mono"';
-    cctx.fillText('NO CHART DATA',6,16); return;
-  }
+  const LANE_WIDTH_RATIO = [0.8,1,1,1,1,1,1,1];
+  const totalRatio = LANE_WIDTH_RATIO.reduce((sum,r)=>sum+r,0);
+  const targetLaneWidth = Math.max(28, wrapperWidth / 8);
+  const groupWidth = totalRatio * targetLaneWidth;
+  const maxPos = notes.reduce((m,n)=>Math.max(m,n[1]),0) || 1;
+  const totalMeasures = Math.ceil((maxPos+1)/384);
+  const groupCount = Math.max(1, Math.ceil(totalMeasures / 4));
+  const groupSpacing = 12;
+  const fullWidth = groupCount * groupWidth + Math.max(0, groupCount-1) * groupSpacing;
+  refCanvas.width = Math.max(wrapperWidth, Math.round(fullWidth));
+  refCanvas.height = ch;
+  rfctx.clearRect(0,0,refCanvas.width,refCanvas.height);
+  rfctx.fillStyle='#16161f';
+  rfctx.fillRect(0,0,refCanvas.width,refCanvas.height);
 
-  // origToDisp: origLane(1-7) → dispLane(0-6)
-  const o2d = new Array(8).fill(-1);
-  mappedOrig.forEach((orig,disp) => { if (orig!==null) o2d[orig] = disp; });
+  const metrics = getLaneMetrics(groupWidth);
+  const origToDisp = new Array(LANES).fill(-1);
+  mappedOrig.forEach((orig,disp)=>{ if(orig!==null) origToDisp[orig]=disp; });
 
-  const maxPos = chartData.notes.reduce((m,n) => Math.max(m, n.pos), 0) || 1;
-
-  chartData.notes.forEach(n => {
-    if (n.key < 1 || n.key > 7) return; // scratchスキップ
-    const disp = o2d[n.key] >= 0 ? o2d[n.key] : n.key-1;
-    const nx = disp * lw;
-    const ny = ph - (n.pos/maxPos)*ph;
-    cctx.fillStyle = KEY_TYPE[n.key-1] ? 'rgba(220,220,255,.8)' : 'rgba(255,77,106,.8)';
-    cctx.fillRect(nx+1, ny, lw-2, 3);
+  notes.forEach(([origLane, pos]) => {
+    const disp = origToDisp[origLane];
+    const targetLane = disp>=0 ? disp : chartLaneToDisplayLane(origLane);
+    const measureIndex = Math.floor(pos / 384);
+    const groupIndex = Math.floor(measureIndex / 4);
+    const inGroupPos = (measureIndex % 4) * 384 + (pos % 384);
+    const x = metrics.offsets[targetLane] + groupIndex * (groupWidth + groupSpacing);
+    const y = ch - (inGroupPos / (384 * 4)) * ch;
+    rfctx.fillStyle = getLaneColor(origLane);
+    rfctx.fillRect(x+1, y, Math.max(1, metrics.widths[targetLane]-2), 3);
   });
 
-  // 活性レーンをハイライト
-  for (let l=0; l<LANES; l++) {
-    if (decayTmr[l] > 0) {
-      cctx.fillStyle = 'rgba(0,229,255,.15)';
-      cctx.fillRect(l*lw, 0, lw, ph);
+  rfctx.strokeStyle='rgba(255,255,255,0.12)';
+  rfctx.lineWidth=0.6;
+  for(let i=1;i<LANES;i++){
+    const x = metrics.offsets[i];
+    for(let g=0;g<groupCount;g++){
+      const gx = x + g * (groupWidth + groupSpacing);
+      rfctx.beginPath(); rfctx.moveTo(gx,0); rfctx.lineTo(gx,ch); rfctx.stroke();
+    }
+  }
+
+  rfctx.strokeStyle='rgba(255,255,255,0.18)';
+  rfctx.lineWidth=0.5;
+  for(let g=0;g<groupCount;g++){
+    const base = g * (groupWidth + groupSpacing);
+    for(let m=1;m<4;m++){
+      const mx = base + m * (groupWidth / 4);
+      rfctx.beginPath(); rfctx.moveTo(mx,0); rfctx.lineTo(mx,ch); rfctx.stroke();
     }
   }
 }
 
-// ═══════════════════════════════════════════════════
-// Cloudflare API 譜面取得
-// ═══════════════════════════════════════════════════
-function onUrl(v) {
-  document.getElementById('bfetch').disabled = !/textage\.cc\/score\/.+\.html/.test(v);
+// =====================================================
+// プレイサイド
+// =====================================================
+function setSide(side) {
+  playSide=side;
+  document.getElementById('s1p').classList.toggle('on',side==='1P');
+  document.getElementById('s2p').classList.toggle('on',side==='2P');
+  log('プレイサイド: '+side);
+}
+
+// =====================================================
+// パラメータ
+// =====================================================
+function setParam(name, val) {
+  params[name]=val;
+  document.getElementById('pv'+name.charAt(0).toUpperCase()+name.slice(1)).textContent=val;
+}
+
+// =====================================================
+// リセット・エクスポート
+// =====================================================
+function resetMapping() {
+  hitCount.fill(0); brightness.fill(0); decayTimer.fill(0); mappedOrig.fill(null);
+  document.getElementById('confFill').style.width='0%';
+  document.getElementById('confPct').textContent='0%';
+  updateUI();
+  log('マッピングリセット', 'log-info');
+}
+
+function exportResult() {
+  const result = {
+    timestamp: new Date().toISOString(),
+    playSide,
+    chartTitle: chartData?.title||null,
+    difficulty: chartData?.difficulty||null,
+    mapping: mappedOrig.map((orig,disp)=>({
+      displayLane: disp+1,
+      originalLane: orig,
+      keyType: orig===null?null:(KEY_TYPE[orig]?'white':'black'),
+      hitCount: hitCount[disp]
+    })),
+    totalHits: hitCount.reduce((a,b)=>a+b,0)
+  };
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));
+  a.download=`iidx_random_${Date.now()}.json`;
+  a.click();
+  log('エクスポート完了','log-ok');
+}
+
+// =====================================================
+// textage.cc 譜面取得
+// =====================================================
+function onUrlInput(val) {
+  // 入力確認（未使用）
+}
+
+async function fetchChartIndex() {
+  const infoBox = document.getElementById('chartInfoBox');
+  const list = document.getElementById('chartIndexList');
+  if(infoBox) infoBox.innerHTML = '<span style="color:var(--ac)">INDEX 読込中<span>⏳</span></span>';
+  log('chartIndex.json を読み込み中...', 'log-info');
+  try {
+    const res = await fetch('./chartIndex.json');
+    if(!res.ok) throw new Error(`chartIndex.json の読み込みに失敗しました (${res.status})`);
+    chartIndex = await res.json();
+    chartIndexDisplay = chartIndex.charts.slice(0, 100);
+    renderChartIndexList(chartIndexDisplay);
+    selectedChart = null;
+    if(infoBox) infoBox.innerHTML = '<span style="color:var(--green);font-size:9px">✓ INDEX 読込完了</span>';
+    log('chartIndex.json 読込完了', 'log-ok');
+  } catch(e) {
+    log('読み込みエラー: '+e.message, 'log-err');
+    if(infoBox) infoBox.innerHTML = `<span style="color:var(--red)">エラー: ${e.message}</span>`;
+    chartIndex = null;
+    chartIndexDisplay = [];
+    list.innerHTML = '';
+  }
+}
+
+function filterChartIndex(keyword) {
+  if(!chartIndex?.charts) return [];
+  const q = (keyword||'').trim().toLowerCase();
+  if(!q) return chartIndex.charts.slice(0, 100);
+  return chartIndex.charts.filter(item =>
+    item.title.toLowerCase().includes(q) ||
+    item.version.toLowerCase().includes(q) ||
+    item.difficultyType.toLowerCase().includes(q) ||
+    String(item.difficulty).includes(q)
+  ).slice(0, 100);
+}
+
+function renderChartIndexList(items) {
+  const list = document.getElementById('chartIndexList');
+  if(!list) return;
+  chartIndexDisplay = items || [];
+  if(chartIndexDisplay.length === 0) {
+    list.innerHTML = '<div style="padding:4px"><span>候補なし</span></div>';
+    return;
+  }
+  list.innerHTML = chartIndexDisplay.map((item, index) =>
+    `<div style="padding:4px;border-bottom:1px solid var(--bd);cursor:pointer;font-size:9px" onclick="selectChartItem(${index})">
+       <div style="color:var(--ac)">${item.title}</div>
+       <div style="color:var(--muted)">${item.version} / ${item.difficultyType} ${item.difficulty}</div>
+     </div>`
+  ).join('');
+}
+
+function selectChartItem(index) {
+  const item = chartIndexDisplay[index];
+  if(!item) return;
+  selectedChart = item;
+  document.getElementById('textageUrl').value = item.url;
+  log(`選択: ${item.title} [${item.difficultyType}${item.difficulty}]`, 'log-info');
+  fetchChart();
 }
 
 async function fetchChart() {
-  const rawUrl = document.getElementById('turl').value.trim();
-  if (!rawUrl) return;
-  const ci = document.getElementById('cinfo');
-  ci.innerHTML = '<span class="ci-warn">⏳ 取得中...</span>';
-  lg('Cloudflare API 呼び出し中...','linfo');
+  const infoBox = document.getElementById('chartInfoBox');
+  const rawInput = document.getElementById('textageUrl')?.value.trim() || '';
+  const rawUrl = selectedChart?.url || rawInput;
+  if(!rawUrl) {
+    log('URLを入力してください','log-warn');
+    return;
+  }
+
+  if(infoBox) infoBox.innerHTML = '<span style="color:var(--ac)">読み込み中<span>⏳</span></span>';
+  log('Cloudflare API を読み込み中...', 'log-info');
+
   try {
     const apiUrl = API_BASE + encodeURIComponent(rawUrl);
     const res = await fetch(apiUrl, {
@@ -999,138 +1032,99 @@ async function fetchChart() {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
-    applyResponse(json, rawUrl);
+    applyChartData(json);
   } catch(e) {
-    lg('API失敗: '+e.message,'lerr');
-    ci.innerHTML = `<span class="ci-err">❌ ${e.message}</span>
-      <br><span class="ci-warn" style="font-size:9px">CORSエラーの場合: Allow CORS拡張を有効にするか、iidx-memo.comを先に開いてください</span>`;
+    log('API失敗: '+e.message,'log-err');
+    if(infoBox) infoBox.innerHTML = `<span style="color:var(--red)">❌ ${e.message}</span>`;
+    chartData = null;
   }
 }
 
-// ─── レスポンス解析 ───────────────────────────────
-// レスポンス形式:
-// {
-//   url, ver, key, diff, title,
-//   notes: [ {measure, pos, key(0=SCR,1-7=鍵盤), type}, ... ],
-//   total_notes, bpm_base, bpm_changes,
-//   lndef, measure_count
-// }
-function applyResponse(json, rawUrl) {
-  const ci = document.getElementById('cinfo');
-  try {
-    const title  = json.title || '(不明)';
-    const bpm    = json.bpm_base || '';
-    const diff   = json.diff || '';
-    const total  = json.total_notes || 0;
-    const lndef  = json.lndef || 384; // 1小節の分割数(通常384)
-
-    // notes から鍵盤ノーツのみ抽出 (key 1-7, scratchのkey=0は除外)
-    const kNotes = (json.notes || []).filter(n => n.key >= 1 && n.key <= 7);
-
-    // 全体の絶対位置(pos)を計算: measure*lndef + pos
-    // measure_lens が空の場合は全小節が lndef 長とみなす
-    const measLens = json.measure_lens || {};
-    const notes = kNotes.map(n => {
-      // 小節 0 ~ measure-1 の累積長を計算
-      let absPos = 0;
-      for (let m = 0; m < n.measure; m++) {
-        absPos += (measLens[m] !== undefined ? measLens[m] : lndef);
-      }
-      absPos += n.pos;
-      return { key: n.key, pos: absPos };
-    });
-
-    // レーン頻度集計 (0-indexed: laneFreq[0]=lane1の頻度, ... )
-    const laneFreq = new Array(7).fill(0);
-    notes.forEach(n => { laneFreq[n.key - 1]++; });
-
-    chartData = { title, bpm, diff, totalNotes:total, notes, laneFreq };
-
-    const diffLabel = {N:'NORMAL',H:'HYPER',A:'ANOTHER',X:'LEGGENDARIA',B:'BEGINNER'}[diff] || diff;
-    const freqStr = laneFreq.map((f,i)=>`L${i+1}:${f}`).join(' ');
-    ci.innerHTML = `
-      <div class="ci-title">${escH(title)}</div>
-      <div>${diffLabel} / BPM ${escH(String(bpm))} / ${total}notes</div>
-      <div class="ci-ok" style="font-size:9px">✓ 読込完了</div>
-      <div style="font-size:8px;letter-spacing:.5px">${freqStr}</div>
-    `;
-    lg(`譜面: ${title} [${diffLabel}] ${total}notes`,'lok');
-    lg(`レーン頻度: ${freqStr}`,'linfo');
-    drawChartPreview();
-  } catch(e) {
-    lg('レスポンス解析エラー: '+e.message,'lerr');
-    ci.innerHTML = `<span class="ci-err">解析エラー: ${e.message}</span>`;
+function applyChartData(parsed) {
+  const normalizedNotes = normalizeChartNotes(parsed.notes || parsed.sampleNotes || []);
+  const noteCount = parsed.total_notes || parsed.totalNotes || normalizedNotes.length;
+  const laneFreq = parsed.laneFreq || parsed.laneFrequency || new Array(LANES).fill(0);
+  if(laneFreq.every(v=>v===0)){
+    laneFreq.fill(0);
+    normalizedNotes.forEach(([lane])=>{ if(lane>=0&&lane<LANES) laneFreq[lane]++; });
   }
-}
 
-function escH(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+  const diff = parsed.diff || parsed.difficulty || parsed.level || parsed.lv || 'UNKNOWN';
+  const bpm = parsed.bpm_base || parsed.bpm || parsed.BPM || '';
 
-function clearChart() {
-  chartData = null;
-  document.getElementById('turl').value = '';
-  document.getElementById('bfetch').disabled = true;
-  document.getElementById('cinfo').innerHTML =
-    '<span style="color:var(--muted)">textage.cc の1P譜面URLを貼り付け</span>';
-  drawChartPreview();
-  lg('譜面データクリア');
-}
-
-// ═══════════════════════════════════════════════════
-// リセット・エクスポート・パラメータ
-// ═══════════════════════════════════════════════════
-function resetMap() {
-  hitCount.fill(0); brightness.fill(0); decayTmr.fill(0); mappedOrig.fill(null);
-  document.getElementById('cfill').style.width = '0%';
-  document.getElementById('cpct').textContent  = '0%';
-  updateUI(); lg('マッピングリセット','linfo');
-}
-
-function exportResult() {
-  const out = {
-    timestamp: new Date().toISOString(), playSide,
-    chart: chartData ? { title:chartData.title, difficulty:chartData.diff } : null,
-    mapping: mappedOrig.map((orig,disp) => ({
-      displayLane: disp+1, originalLane: orig,
-      keyType: orig===null ? null : (KEY_TYPE[orig-1]?'white':'black'),
-      hitCount: hitCount[disp],
-    })),
-    totalHits: hitCount.reduce((a,b)=>a+b,0),
+  chartData = {
+    url: parsed.url || '',
+    version: parsed.ver || parsed.version || '',
+    key: parsed.key || parsed.id || '',
+    title: parsed.title || parsed.name || '(UNKNOWN)',
+    artist: parsed.artist || parsed.composer || '',
+    bpm,
+    difficulty: diff,
+    noteCount,
+    laneFreq,
+    notes: normalizedNotes,
+    measureLens: parsed.measure_lens || parsed.measureLens || null
   };
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
-  a.download = `iidx_random_${Date.now()}.json`;
-  a.click(); lg('エクスポート完了','lok');
-}
 
-function sp(name, val) {
-  params[name] = val;
-  const k = name.charAt(0).toUpperCase() + name.slice(1);
-  document.getElementById('v'+k).textContent = val;
-}
-
-function setSide(s) {
-  playSide = s;
-  document.getElementById('s1p').classList.toggle('on', s==='1P');
-  document.getElementById('s2p').classList.toggle('on', s==='2P');
-  lg('プレイサイド: '+s);
-}
-
-// ═══════════════════════════════════════════════════
-// 初期化
-// ═══════════════════════════════════════════════════
-(function init() {
-  // chartCanvas リサイズ監視
-  new ResizeObserver(() => drawChartPreview())
-    .observe(document.querySelector('.preview-wrap'));
-
-  // ウィンドウリサイズ時にROIを再描画
-  window.addEventListener('resize', () => { drawROI(); });
-
+  const infoBox = document.getElementById('chartInfoBox');
+  if(infoBox) infoBox.innerHTML = `
+    <div style="color:var(--ac);font-size:10px">${chartData.title}</div>
+    <div style="color:var(--text);font-size:9px">${chartData.artist} / BPM ${chartData.bpm}</div>
+    <div style="color:var(--text);font-size:9px">${chartData.difficulty} / ${chartData.noteCount} notes</div>
+  `;
+  log(`譜面読込: ${chartData.title} [${diff}] ${chartData.noteCount}notes`, 'log-ok');
   updateUI();
-  lg('IIDX RANDOM Analyzer 起動','lok');
-  lg('映像ソース選択 → ROIをドラッグ設定 → 解析開始');
+}
+
+function normalizeChartNote(item) {
+  if(!item) return null;
+  if(Array.isArray(item)){
+    const lane0 = Number(item[0]);
+    const pos = Number(item[1] || 0);
+    if(!Number.isFinite(lane0)) return null;
+    if(lane0 >= 0 && lane0 <= 7) return [lane0, pos];
+    return null;
+  }
+  if(typeof item==='object'){
+    const laneRaw = Number(item.lane ?? item.col ?? item.key ?? item.column ?? item.origLane ?? item.orig ?? item[0] ?? 0);
+    if(!Number.isFinite(laneRaw)) return null;
+    const rawPos = Number(item.pos ?? item.time ?? item.timing ?? item.row ?? item.y ?? 0);
+    const measureRaw = Number(item.measure ?? item.bar ?? item.measureNo ?? 0);
+    let pos = Number.isFinite(rawPos) ? rawPos : 0;
+    if(Number.isFinite(measureRaw)){
+      const measureIndex = measureRaw > 0 ? measureRaw - 1 : measureRaw;
+      pos += measureIndex * 384;
+    }
+    let lane = laneRaw;
+    if(lane >= 1 && lane <= 7) {
+      lane = laneRaw;
+    }
+    return [lane, pos];
+  }
+  return null;
+}
+
+function normalizeChartNotes(notes) {
+  if(!Array.isArray(notes)) return [];
+  const normalized = notes
+    .map(normalizeChartNote)
+    .filter(n=>n && Number.isFinite(n[0]) && n[0]>=0 && n[0]<LANES);
+  const hasScratch = normalized.some(([lane]) => lane === 0);
+  if(hasScratch) return normalized;
+  const maxLane = normalized.reduce((m,[lane]) => Math.max(m, lane), -1);
+  if(maxLane <= 6) {
+    return normalized.map(([lane,pos]) => [lane + 1, pos]);
+  }
+  return normalized;
+}
+
+// =====================================================
+// 初期化
+// =====================================================
+(function init(){
+  updateUI();
+  log('IIDX RANDOM Analyzer 起動完了','log-ok');
+  log('映像ソースを選択してROIを設定してください');
 })();
 </script>
 </body>
