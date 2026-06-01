@@ -91,6 +91,14 @@ body::after {
   display: grid;
   grid-template-columns: 1fr 320px;
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -99,6 +107,8 @@ body::after {
   position: relative;
   background: #000;
   overflow: hidden;
+  flex: 1;
+  min-height: 0;
 }
 video, #overlayCanvas, #roiCanvas {
   position: absolute; inset: 0;
@@ -130,6 +140,13 @@ video, #overlayCanvas, #roiCanvas {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+}
+
+.right-panel-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .panel-block {
@@ -343,14 +360,20 @@ input[type=range]::-webkit-slider-thumb {
 .log-info { color: var(--accent); }
 .log-err { color: var(--red); }
 
-.app-footer {
+.footer-container {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) 320px;
-  gap: 1px;
-  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  height: 260px;
+  min-height: 140px;
+  max-height: 60vh;
   overflow: hidden;
+}
+.footer-resizer {
+  height: 8px;
+  cursor: row-resize;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), rgba(255,255,255,0.15));
 }
 .footer-panel {
   background: var(--surface);
@@ -358,22 +381,31 @@ input[type=range]::-webkit-slider-thumb {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+.footer-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.footer-log {
+  min-height: 0;
+  max-height: 180px;
+}
+.footer-log #logBox {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .footer-panel .block-title {
   margin-bottom: 12px;
 }
 .footer-panel .chart-ref-canvas-wrap {
-  height: 160px;
+  flex: 1;
+  min-height: 120px;
 }
-.footer-panel .chart-index-list,
 .footer-panel .lane-rows {
   max-height: none;
-}
-.footer-log {
-  min-width: 320px;
-}
-.footer-log #logBox {
-  height: calc(100% - 24px);
 }
 
 /* ─── ROI MODE ─── */
@@ -406,14 +438,41 @@ input[type=range]::-webkit-slider-thumb {
 </header>
 
 <div class="main">
-  <!-- ── 左: 映像 ── -->
-  <div class="video-panel">
-    <video id="srcVideo" autoplay muted playsinline></video>
-    <canvas id="overlayCanvas"></canvas>
-    <canvas id="roiCanvas"></canvas>
-    <div class="no-source" id="noSource">
-      <div class="no-source-icon">▶</div>
-      <div class="no-source-text">NO VIDEO SOURCE</div>
+  <!-- ── 左: 映像 + フッター ── -->
+  <div class="left-panel">
+    <div class="video-panel">
+      <video id="srcVideo" autoplay muted playsinline></video>
+      <canvas id="overlayCanvas"></canvas>
+      <canvas id="roiCanvas"></canvas>
+      <div class="no-source" id="noSource">
+        <div class="no-source-icon">▶</div>
+        <div class="no-source-text">NO VIDEO SOURCE</div>
+      </div>
+    </div>
+
+    <div class="footer-container" id="footerContainer">
+      <div class="footer-resizer" id="footerResizer"></div>
+      <div class="footer-panel footer-main">
+        <div class="block-title">RANDOM MAPPING</div>
+        <div class="conf-row">
+          <span class="conf-label">CONFIDENCE</span>
+          <span class="conf-pct" id="confPct">0%</span>
+        </div>
+        <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+        <div class="lane-rows" id="laneRows"></div>
+        <div class="chart-ref-title">REFERENCE CHART (NORMAL)</div>
+        <div class="chart-ref-canvas-wrap">
+          <canvas id="chartRefCanvas"></canvas>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn" onclick="resetMapping()">RESET</button>
+          <button class="btn" onclick="exportResult()">EXPORT</button>
+        </div>
+      </div>
+      <div class="footer-panel footer-log">
+        <div class="block-title">LOG</div>
+        <div id="logBox"></div>
+      </div>
     </div>
   </div>
 
@@ -430,6 +489,7 @@ input[type=range]::-webkit-slider-thumb {
       </div>
     </div>
 
+    <div class="right-panel-scroll">
     <!-- プレイサイド -->
     <div class="panel-block">
       <div class="block-title">PLAY SIDE</div>
@@ -488,33 +548,10 @@ input[type=range]::-webkit-slider-thumb {
         <span class="param-val" id="pvMinHits">40</span>
       </div>
     </div>
+    </div>
 
-</div><!-- /right-panel -->
+  </div><!-- /right-panel -->
 </div><!-- /main -->
-
-<footer class="app-footer">
-  <div class="footer-panel">
-    <div class="block-title">RANDOM MAPPING</div>
-    <div class="conf-row">
-      <span class="conf-label">CONFIDENCE</span>
-      <span class="conf-pct" id="confPct">0%</span>
-    </div>
-    <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
-    <div class="lane-rows" id="laneRows"></div>
-    <div class="chart-ref-title">REFERENCE CHART (NORMAL)</div>
-    <div class="chart-ref-canvas-wrap">
-      <canvas id="chartRefCanvas"></canvas>
-    </div>
-    <div class="btn-row" style="margin-top:10px">
-      <button class="btn" onclick="resetMapping()">RESET</button>
-      <button class="btn" onclick="exportResult()">EXPORT</button>
-    </div>
-  </div>
-  <div class="footer-panel footer-log">
-    <div class="block-title">LOG</div>
-    <div id="logBox"></div>
-  </div>
-</footer>
 
 <script>
 // =====================================================
@@ -572,6 +609,8 @@ const rctx       = roiCanvas.getContext('2d');
 const refCanvas  = document.getElementById('chartRefCanvas');
 const rfctx      = refCanvas.getContext('2d');
 const noSource   = document.getElementById('noSource');
+const footerContainer = document.getElementById('footerContainer');
+const footerResizer = document.getElementById('footerResizer');
 
 // =====================================================
 // ログ
@@ -953,6 +992,54 @@ function drawRefChart() {
   for(let i=1;i<LANES;i++){
     rfctx.beginPath(); rfctx.moveTo(i*laneW,0); rfctx.lineTo(i*laneW,ch); rfctx.stroke();
   }
+}
+
+let footerDragActive = false;
+let footerStartY = 0;
+let footerStartHeight = 0;
+
+function initFooterResizer() {
+  const resizer = document.getElementById('footerResizer');
+  const container = document.getElementById('footerContainer');
+  if(!resizer || !container) return;
+
+  const startDrag = (clientY) => {
+    footerDragActive = true;
+    footerStartY = clientY;
+    footerStartHeight = container.getBoundingClientRect().height;
+    document.body.style.userSelect = 'none';
+  };
+
+  const doDrag = (clientY) => {
+    if(!footerDragActive) return;
+    const delta = footerStartY - clientY;
+    const nextHeight = footerStartHeight + delta;
+    const minHeight = 120;
+    const maxHeight = window.innerHeight * 0.6;
+    container.style.height = Math.min(maxHeight, Math.max(minHeight, nextHeight)) + 'px';
+  };
+
+  const endDrag = () => {
+    if(!footerDragActive) return;
+    footerDragActive = false;
+    document.body.style.userSelect = '';
+  };
+
+  resizer.addEventListener('mousedown', (e) => {
+    startDrag(e.clientY);
+  });
+  window.addEventListener('mousemove', (e) => {
+    doDrag(e.clientY);
+  });
+  window.addEventListener('mouseup', endDrag);
+  resizer.addEventListener('touchstart', (e) => {
+    startDrag(e.touches[0].clientY);
+    e.preventDefault();
+  }, {passive:false});
+  window.addEventListener('touchmove', (e) => {
+    if(e.touches.length) doDrag(e.touches[0].clientY);
+  }, {passive:false});
+  window.addEventListener('touchend', endDrag);
 }
 
 // =====================================================
@@ -1362,6 +1449,7 @@ function setSide(side) {
 // =====================================================
 (function init(){
   updateUI();
+  initFooterResizer();
   log('IIDX RANDOM Analyzer 起動完了','log-ok');
   log('映像ソースを選択してROIを設定してください');
   // refCanvas サイズ
